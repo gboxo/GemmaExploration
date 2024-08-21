@@ -157,9 +157,10 @@ def calculate_attribution_grads(
         track_grads=True,
     )
     metric = metric_fn(output.model_output)
-    gradients = torch.ones_like(metric)
+    #gradients = torch.ones_like(metric)
     output.zero_grad()
-    metric.backward(gradients)
+    metric.backward()
+    #metric.backward(gradients)
     return AttributionGrads(
         metric=metric,
         model_output=output.model_output,

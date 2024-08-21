@@ -150,3 +150,21 @@ DTYPE_MAP = {
     "bfloat16": torch.bfloat16,
 }
 
+
+from sae_lens.toolkit.pretrained_saes_directory import get_pretrained_saes_directory
+import pandas as pd
+def get_all_string_min_l0_resid_gemma():
+    df = pd.DataFrame.from_records({k:v.__dict__ for k,v in get_pretrained_saes_directory().items()}).T
+    resid_dict = df[df['release'] == "gemma-scope-2b-pt-res"]['saes_map'][0]
+    splitted_list = [[e.split("_")[-1] for e in elem.split("/")] for elem in list(resid_dict.keys())]
+    full_dict = {}
+    for elem in splitted_list:
+        if elem[1]=="16k":
+            if elem[0] not in full_dict.keys():
+                full_dict[elem[0]] = {}
+                full_dict[elem[0]][elem[1]] = elem[2]
+            else:
+                if full_dict[elem[0]][elem[1]]>elem[2]:
+                    full_dict[elem[0]][elem[1]] = elem[2]
+    full_strings = [f"layer_{key}/width_16k/average_l0_{val['16k']}" for key,val in full_dict.items()]
+    return full_strings
