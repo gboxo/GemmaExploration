@@ -6,7 +6,6 @@ import torch
 import numpy as np
 
 from huggingface_hub import hf_hub_download
-from huggingface_hub.utils._errors import EntryNotFoundError
 from safetensors import safe_open
 def get_gemma_2_config(
     repo_id: str,
