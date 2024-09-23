@@ -77,8 +77,8 @@ def get_logit_diff(logits, pos:int = 46) -> torch.Tensor:
     return logits[0,pos,235248] - logits[0,pos,108]
 
 
-CLEAN_BASELINE = logit_diff.clone() 
-CORRUPTED_BASELINE = logit_diff2.clone()
+CLEAN_BASELINE = logit_diff.clone().cpu()[46]
+CORRUPTED_BASELINE = logit_diff2.clone().cpu()[46]
 
 def ioi_metric(logits ):
     return (get_logit_diff(logits) - CORRUPTED_BASELINE) / (CLEAN_BASELINE  - CORRUPTED_BASELINE)
@@ -91,15 +91,127 @@ torch.cuda.empty_cache()
 
 
 
+torch.cuda.empty_cache()
 
 
+hypen_positions = torch.where(toks[0] == hypen_tok_id)[0]
+def get_all_patching(toks,toks2,pos):
+    with torch.no_grad():
+        corrupt_logits, corrupt_cache = model.run_with_cache(toks2)
+
+    def resid_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.hook_resid_pre"][:,pos,:]
+        return acts
+    def ln1_normalized_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.ln1.hook_normalized"][:,pos,:]
+        return acts
+    def mlp_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.hook_mlp_out"][:,pos,:] 
+        return acts
+    def attn_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.hook_attn_out"][:,pos,:] 
+        return acts
+    def attn_z_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_z"][:,pos,:] 
+        return acts
+    def attn_q_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_q"][:,pos,:] 
+        return acts
+    def attn_k_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_k"][:,pos,:]
+        return acts
+    def attn_v_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_v"][:,pos,:] 
+        return acts
+    logit_diff_mat = np.zeros((model.cfg.n_layers,8))
+    n_layers = model.cfg.n_layers
+
+    for layer_to_ablate in range(n_layers):
+        for comp_id,comp in enumerate(["hook_resid_pre","hook_mlp_out","hook_attn_out","attn.hook_z","attn.hook_q","attn.hook_k","ln1.hook_normalized","attn.hook_v"]):
+            if comp == "hook_resid_pre":
+                hook_func = partial(resid_replacement_hook, pos=pos,layer = layer_to_ablate)
+            elif comp == "hook_mlp_out":
+                hook_func = partial(mlp_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "hook_attn_out":
+                hook_func = partial(attn_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "attn.hook_z":
+                hook_func = partial(attn_z_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "attn.hook_q":
+                hook_func = partial(attn_q_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "attn.hook_k":
+                hook_func = partial(attn_k_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "attn.hook_v":
+                hook_func = partial(attn_v_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            elif comp == "ln1.hook_normalized":
+                hook_func = partial(ln1_normalized_replacement_hook,pos = pos, layer = layer_to_ablate) 
+            with torch.no_grad():
+                ablated_logits = model.run_with_hooks(
+                    toks, 
+                    return_type="logits", 
+                    fwd_hooks=[(
+                        f"blocks.{layer_to_ablate}.{comp}", 
+                        hook_func
+                        )]
+                    )
+            ablated_logit_diff = ablated_logits[:,pos,235248] - ablated_logits[:,pos,break_tok_id]  
+            logit_diff_mat[layer_to_ablate,comp_id] = ablated_logit_diff.cpu().numpy()#-CORRUPTED_BASELINE.numpy())/(CLEAN_BASELINE.numpy()-CORRUPTED_BASELINE.numpy())
+    return logit_diff_mat
+    
+
+logit_diff_mat = get_all_patching(toks,toks2, 46)
+torch.cuda.empty_cache()
 
 
+# %%
+pos = 46
+
+comps = ["hook_resid_pre","hook_mlp_out","hook_attn_out","attn.hook_z","attn.hook_q","attn.hook_k","ln1.hook_normalized","attn.hook_v"]
+fig = px.imshow(logit_diff_mat.T, labels=dict(x="Positions", y="Layers", color="Logit Difference"),
+                title=f"Logit Difference Ablations for Position {pos}",
+                y=[comp for comp in comps],
+                x=[f"Layers {i}" for i in range(model.cfg.n_layers)],
+                color_continuous_scale='Viridis')
+fig.show()
 
 
+# %%
 
+from transformer_lens import patching
+with torch.no_grad():
+    _,clean_cache = model.run_with_cache(toks)
+# %%
+resid_pre_act_patch_results = patching.get_act_patch_resid_pre(model, toks2, clean_cache, ioi_metric)
+px.imshow(resid_pre_act_patch_results.cpu(), 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0]))],
+       title="resid_pre Activation Patching")
 
+torch.cuda.empty_cache()
+# %%
 
+attn_head_out_all_pos_act_patch_results = patching.get_act_patch_attn_head_out_all_pos(model, toks2, clean_cache, ioi_metric)
+# %%
+fig = px.imshow(attn_head_out_all_pos_act_patch_results.cpu(), 
+        x=[f"Head {i}" for i in range(8)],
+        y=[f"Layers {i}" for i in range(model.cfg.n_layers)],
+       title="attn_head_out Activation Patching (All Pos)")
 
+fig.show()
+torch.cuda.empty_cache()
+# %%
+every_head_all_pos_q_patch_result = patching.get_act_patch_attn_head_q_all_pos(model, toks2, clean_cache, ioi_metric)
 
+fig = px.imshow(every_head_all_pos_q_patch_result.cpu(),
+         x=[f"Head {i}" for i in range(8)],
+         y=[f"Layers {i}" for i in range(model.cfg.n_layers)],
+         title="attn_head_q Activation Patching (All Pos)")
+fig.show()
+# %%
+
+every_head_attn_pattern_pos = patching.get_act_patch_attn_head_pattern_all_pos(model, toks2, clean_cache, ioi_metric)
+
+fig = px.imshow(every_head_attn_pattern_pos.cpu(),
+         x=[f"Head {i}" for i in range(8)],
+         y=[f"Layers {i}" for i in range(model.cfg.n_layers)],
+         title="attn_head_pattern Activation Patching (All Pos)")
+fig.show()
 
