@@ -136,8 +136,7 @@ def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Option
             feature_activations[:,:,feature_ids] = 0
         elif len(positions) == len(feature_ids):
             for position, feature_id in zip(positions, feature_ids):
-                pass
-                #feature_activations[:,position,feature_id] = 30
+                feature_activations[:,position,feature_id] = 0
         else:
             feature_activations[:,positions,feature_ids] = 0
 
