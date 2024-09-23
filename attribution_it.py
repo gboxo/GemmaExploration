@@ -1,4 +1,4 @@
-
+# %%
 from attribution_utils import calculate_feature_attribution
 from torch.nn.functional import log_softmax
 from gemma_utils import get_all_string_min_l0_resid_gemma
@@ -65,25 +65,27 @@ def metric_fn(logits: torch.Tensor, pos:int = 46) -> torch.Tensor:
 
 full_strings = get_all_string_min_l0_resid_gemma()
 layer = 20
+layers = [0,5,10,15,20]
 saes_dict = {}
-with torch.no_grad():
-    repo_id = "google/gemma-scope-2b-pt-res"
-    folder_name = full_strings[layer]
-    config = get_gemma_2_config(repo_id, folder_name)
-    cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
-    sae_cfg = SAEConfig.from_dict(cfg)
-    sae = SAE(sae_cfg)
-    sae.load_state_dict(state_dict)
-    sae.to("cuda:0")
-    sae.use_error_term = True
 
-    saes_dict[sae.cfg.hook_name] = sae
+with torch.no_grad():
+    for layer in layers:
+        repo_id = "google/gemma-scope-2b-pt-res"
+        folder_name = full_strings[layer]
+        config = get_gemma_2_config(repo_id, folder_name)
+        cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
+        sae_cfg = SAEConfig.from_dict(cfg)
+        sae = SAE(sae_cfg)
+        sae.load_state_dict(state_dict)
+        sae.to("cuda:0")
+        sae.use_error_term = True
+        saes_dict[sae.cfg.hook_name] = sae
 
 # %%
 
 
 
-feature_attrºibution_df = calculate_feature_attribution(
+feature_attribution_df = calculate_feature_attribution(
     model = model,
     input = toks,
     metric_fn = metric_fn,
@@ -111,6 +113,69 @@ df_long_nonzero.sort_values("attribution", ascending=False)
 
 
 
+# %%
+
+
+all_df = []
+for key in saes_dict.keys():
+    df_long_nonzero = convert_sparse_feature_to_long_df(feature_attribution_df.sae_feature_attributions[key][0])
+    df_long_nonzero.sort_values("attribution", ascending=True)
+    all_df.append(df_long_nonzero.nlargest(10, "attribution"))
+
+
+
+# %%
+
+from functools import partial
+from typing import Optional
+def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Optional):
+    
+    def ablate_feature_hook(feature_activations, hook, feature_ids, positions = None):
+    
+        if positions is None:
+            feature_activations[:,:,feature_ids] = 0
+        elif len(positions) == len(feature_ids):
+            for position, feature_id in zip(positions, feature_ids):
+                pass
+                #feature_activations[:,position,feature_id] = 30
+        else:
+            feature_activations[:,positions,feature_ids] = 0
+
+        return feature_activations
+        
+    ablation_hook = partial(ablate_feature_hook, feature_ids = ablation_features, positions = positions)
+    
+    model.add_sae(sae)
+    hook_point = sae.cfg.hook_name + '.hook_sae_acts_post'
+    model.add_hook(hook_point, ablation_hook, "fwd")
+    
+    
+    logits = model(prompt)
+
+
+    
+    model.reset_saes()
+    model.reset_hooks()
+    return logits
+
+
+
+
+
+# %%
+# Layer 5
+sae = list(saes_dict.values())[1]
+featuers = [7541,13789]
+positions = [9,13] 
+sae.use_error_term = False
+logits = prompt_with_ablation(model, sae, toks, featuers,positions)
+logit_diff = logits[0,46,235248] - logits[0,46,break_tok_id]
+print(logit_diff)
+
+
+
+
+# %%
 
 
 
