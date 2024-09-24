@@ -54,6 +54,7 @@ Few interesting things that were interesting:
 3) The number of items in each list with a white space added is pretty consistent across topics, with a few outliers.
 4) The number of items in each list is also very similar across topics.
 5) There exist a correlation between the sampling temperature and the number of items in a list with a blank spaces token before the end of the list.
+6) For prompts, where we asked for a long list, the average number of items is 30, and we no longer observe an abudance of white space tokens at the end of the list.
 
 
 

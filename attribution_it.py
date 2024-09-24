@@ -64,8 +64,8 @@ def metric_fn(logits: torch.Tensor, pos:int = 46) -> torch.Tensor:
 
 
 full_strings = get_all_string_min_l0_resid_gemma()
-layer = 20
-layers = [0,5,10,15,20]
+layers = [5]
+#layers = [0,5,10,15,20]
 saes_dict = {}
 
 with torch.no_grad():
@@ -147,15 +147,16 @@ def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Option
     model.add_sae(sae)
     hook_point = sae.cfg.hook_name + '.hook_sae_acts_post'
     model.add_hook(hook_point, ablation_hook, "fwd")
-    
-    
-    logits = model(prompt)
+    with torch.no_grad():
+        logits = model(prompt)
 
 
+    logit_diff = logits[0,46,235248] - logits[0,46,break_tok_id]
+    print(logit_diff)
     
-    model.reset_saes()
     model.reset_hooks()
-    return logits
+    model.reset_saes()
+#    return logits
 
 
 
@@ -163,13 +164,12 @@ def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Option
 
 # %%
 # Layer 5
-sae = list(saes_dict.values())[1]
+model.reset_hooks(including_permanent=True)
+sae = list(saes_dict.values())[0]
 featuers = [7541,13789]
 positions = [9,13] 
-sae.use_error_term = False
-logits = prompt_with_ablation(model, sae, toks, featuers,positions)
-logit_diff = logits[0,46,235248] - logits[0,46,break_tok_id]
-print(logit_diff)
+sae.use_error_term = True
+prompt_with_ablation(model, sae, toks, featuers,positions)
 
 
 
