@@ -121,14 +121,28 @@ def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_po
         model.add_hook(hook_point_act, ablation_hook, "fwd")
         hook_point_out = key + '.hook_sae_output'
         model.add_hook(hook_point_out, hook_fn, "fwd")
+    generate = True
     with torch.no_grad():
-        logits = model(prompt)
+        if generate:
+            toks = prompt[:,46]
+            out = model.generate(
+                toks,
+                max_new_tokens = 200,
+                temperature = 0.7,
+                top_p = 0.8,
+                stop_at_eos=True,
+            )
+            print(model.to_string(out))
+        else:
+            logits = model(prompt)
+
+
 
 
     
     model.reset_hooks()
     model.reset_saes()
-    return logits
+    #return logits
 
 
 
