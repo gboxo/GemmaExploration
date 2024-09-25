@@ -76,8 +76,11 @@ with torch.no_grad():
 
 from functools import partial
 from typing import Optional
-def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Optional, error_term):
+def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_pos):
+
     def hook_fn(act, hook):
+        layer = int(hook.name.split(".")[1])
+        sae_error = error_cache[f"blocks.{layer}.hook_resid_post.hook_sae_error"] 
         return act + sae_error
     
     def ablate_feature_hook(feature_activations, hook, feature_ids, positions = None):
@@ -93,38 +96,39 @@ def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Option
         return feature_activations
         
 # Compute the SAE error
-    sae.use_error_term = True
-    model.add_sae(sae)
+    for _,sae in saes_dict.items():
+        sae.use_error_term = True
+        model.add_sae(sae)
     names_filter = lambda x: ".hook_sae_error" in x
     with torch.no_grad():
-        logits,cache = model.run_with_cache(toks, names_filter = names_filter)
-    logit_diff = logits[0,46,235248] - logits[0,46,break_tok_id]
-    print(logit_diff)
+        _,error_cache = model.run_with_cache(toks, names_filter = names_filter)
 
-    sae_error = cache[sae.cfg.hook_name + ".hook_sae_error"]
 
     model.reset_hooks()
     model.reset_saes()
-    sae.use_error_term = False
 
+    for _,sae in saes_dict.items():
+        sae.use_error_term = False
+        model.add_sae(sae)
 
-    ablation_hook = partial(ablate_feature_hook, feature_ids = ablation_features, positions = positions)
-    
-    model.add_sae(sae)
-    hook_point_act = sae.cfg.hook_name + '.hook_sae_acts_post'
-    model.add_hook(hook_point_act, ablation_hook, "fwd")
-    hook_point_out = sae.cfg.hook_name + '.hook_sae_output'
-    model.add_hook(hook_point_out, hook_fn, "fwd")
+    for key in saes_dict.keys():
+        layer = int(key.split(".")[1])
+        ablation_features = ablation_features_by_layer_pos[layer]["Features"]
+        positions = ablation_features_by_layer_pos[layer]["Positions"]
+
+        ablation_hook = partial(ablate_feature_hook, feature_ids = ablation_features, positions = positions)
+        hook_point_act = key + '.hook_sae_acts_post'
+        model.add_hook(hook_point_act, ablation_hook, "fwd")
+        hook_point_out = key + '.hook_sae_output'
+        model.add_hook(hook_point_out, hook_fn, "fwd")
     with torch.no_grad():
         logits = model(prompt)
 
 
-    logit_diff = logits[0,46,235248] - logits[0,46,break_tok_id]
-    print(logit_diff)
     
     model.reset_hooks()
     model.reset_saes()
-#    return logits
+    return logits
 
 
 
@@ -133,13 +137,33 @@ def prompt_with_ablation(model, sae, prompt, ablation_features,positions: Option
 # %%
 # Layer 5
 model.reset_hooks(including_permanent=True)
-sae = list(saes_dict.values())[0]
+features_ablate_pos_layer = {
+        0:{
+            "Features":[4725,8198],
+            "Positions":[11,9]
 
-sae.use_error_term = False
+            },
+        5:{
+            "Features":[13789,12820],
+            "Positions":[13,15]
 
-featuers = [7541,13789]
-positions = [9,13] 
-prompt_with_ablation(model, sae, toks, featuers,positions,error_term = sae_error)
+            },
+        10:{
+            "Features":[13146,8770],
+            "Positions":[0,15]
 
-# %%
+            },
+        15:{
+            "Features":[8610,13370],
+            "Positions":[0,46]
+
+            },
+        20:{
+            "Features":[4365,3013],
+            "Positions":[46,46]
+
+            },
+        }
+logits_with_ablation = prompt_with_ablation(model, saes_dict, toks, features_ablate_pos_layer)
+
 
