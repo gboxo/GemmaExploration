@@ -152,25 +152,29 @@ tups2 = all_df_dict["log_prob"][blanck_tok_id]
 tups3 = all_df_dict["log_prob"][eot_tok_id]
 
 # Compute the proportion of intersection
-def compute_proportion_intersection(tups0,tups1):
+def compute_proportion_intersection(tups0,tups1,use_position = False):
     intersect01 = []
     for tup0,tup1 in zip(tups0,tups1):
-        intersec = set(tup0).intersection(set(tup1))
+        if use_position:
+            intersec = set(tup0).intersection(set(tup1))
+        else:
+            # just use the feature ids
+            intersec = set([feat for pos,feat in tup0]).intersection(set([feat for pos,feat in tup1])) 
         intersect01.append(len(intersec)/len(tup0))
     return np.mean(intersect01)
 
 
 
-intersect00 = compute_proportion_intersection(tups0,tups1)
-intersect01 = compute_proportion_intersection(tups0,tups2)
-intersect03 = compute_proportion_intersection(tups0,tups3)
-intersect12 = compute_proportion_intersection(tups1,tups2)
-intersect13 = compute_proportion_intersection(tups1,tups3)
-intersect23 = compute_proportion_intersection(tups2,tups3)
+intersect01 = compute_proportion_intersection(tups0,tups1, use_position = True)
+intersect02 = compute_proportion_intersection(tups0,tups2, use_position = True)
+intersect03 = compute_proportion_intersection(tups0,tups3, use_position = True)
+intersect12 = compute_proportion_intersection(tups1,tups2, use_position = True)
+intersect13 = compute_proportion_intersection(tups1,tups3, use_position = True)
+intersect23 = compute_proportion_intersection(tups2,tups3, use_position = True)
 
 intersect_mat = np.zeros((4,4))
-intersect_mat[0,1] = intersect00
-intersect_mat[0,2] = intersect01
+intersect_mat[0,1] = intersect01
+intersect_mat[0,2] = intersect02
 intersect_mat[0,3] = intersect03
 intersect_mat[1,2] = intersect12
 intersect_mat[1,3] = intersect13
