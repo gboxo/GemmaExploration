@@ -51,8 +51,8 @@ def metric_fn(logits: torch.Tensor, pos:int = 46) -> torch.Tensor:
 
 
 full_strings = get_all_string_min_l0_resid_gemma()
-layers = [5]
-#layers = [0,5,10,15,20]
+#layers = [5]
+layers = [0,5,10,15,20]
 saes_dict = {}
 
 with torch.no_grad():
@@ -73,10 +73,19 @@ with torch.no_grad():
 
 
 # %%
-
+from collections import defaultdict
 from functools import partial
 from typing import Optional
 def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_pos):
+
+    #def hook_cache_error_term_generate(act,hook):
+    #    cache_error[hook.name].append(act)
+    #    return act
+
+
+    def hook_error_ablate(act, hook):
+        x = torch.zeros_like(act)
+        return x
 
     def hook_fn(act, hook):
         layer = int(hook.name.split(".")[1])
@@ -96,48 +105,60 @@ def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_po
         return feature_activations
         
 # Compute the SAE error
+    fwd_hooks = []
     for _,sae in saes_dict.items():
         sae.use_error_term = True
         model.add_sae(sae)
+        #fwd_hooks.append((sae.cfg.hook_name+".hook_sae_error",hook_cache_error_term_generate))
+
     names_filter = lambda x: ".hook_sae_error" in x
-    with torch.no_grad():
-        _,error_cache = model.run_with_cache(toks, names_filter = names_filter)
+    """
+    cache_error = defaultdict(list) 
+    if generate:
+        with torch.no_grad():
+            with model.hooks(fwd_hooks = fwd_hooks):
+                out = model.generate(prompt,
+                                     max_new_tokens = 100,
+                                     temperature = 0.7,
+                                     top_p = 0.8,
+                                     stop_at_eos=True,
+                                     verbose = False,)
+        error_cache = {k:torch.cat(v) for k,v in cache_error.items()}
+        print(error_cache.keys())
+
+    else:
+    """
+    if True:
+        with torch.no_grad():
+            _,error_cache = model.run_with_cache(prompt, names_filter = names_filter)
 
 
     model.reset_hooks()
     model.reset_saes()
 
     for _,sae in saes_dict.items():
-        sae.use_error_term = False
+        sae.use_error_term = True
         model.add_sae(sae)
 
     for key in saes_dict.keys():
         layer = int(key.split(".")[1])
+        if layer not in ablation_features_by_layer_pos.keys():
+            continue
         ablation_features = ablation_features_by_layer_pos[layer]["Features"]
         positions = ablation_features_by_layer_pos[layer]["Positions"]
 
         ablation_hook = partial(ablate_feature_hook, feature_ids = ablation_features, positions = positions)
+        hook_point_act = key + '.hook_sae_error'
+        model.add_hook(hook_point_act, hook_error_ablate, "fwd")
         hook_point_act = key + '.hook_sae_acts_post'
         model.add_hook(hook_point_act, ablation_hook, "fwd")
         hook_point_out = key + '.hook_sae_output'
         model.add_hook(hook_point_out, hook_fn, "fwd")
-    generate = True
+
+
     with torch.no_grad():
-        if generate:
-            toks = prompt[:,46]
-            out = model.generate(
-                toks,
-                max_new_tokens = 200,
-                temperature = 0.7,
-                top_p = 0.8,
-                stop_at_eos=True,
-            )
-            print(model.to_string(out))
-        else:
-            logits = model(prompt)
-
-
-
+        logits = model(prompt)
+    logit_diff = logits[0,46,235248] - logits[0,46,108]
 
     
     model.reset_hooks()
@@ -167,16 +188,16 @@ features_ablate_pos_layer = {
             "Positions":[0,15]
 
             },
-        15:{
-            "Features":[8610,13370],
-            "Positions":[0,46]
-
-            },
-        20:{
-            "Features":[4365,3013],
-            "Positions":[46,46]
-
-            },
+        #15:{
+        #    "Features":[8610,13370],
+        #    "Positions":[0,46]
+        #
+        #    },
+        #20:{
+        #    "Features":[4365,3013],
+        #    "Positions":[46,46]
+        #
+        #    },
         }
 logits_with_ablation = prompt_with_ablation(model, saes_dict, toks, features_ablate_pos_layer)
 
