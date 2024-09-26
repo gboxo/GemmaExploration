@@ -178,14 +178,14 @@ figures = []
 # Iterate over each head to create a heatmap for that head
 for layer in range(26):
     # Slice the matrix for the current head
-    heatmap_data = attention_attr[0,layer,:,:].cpu().numpy().mean(0)  # Shape: (n_layers, n_tokens)
+    heatmap_data = attention_attr[0,layer,:,:].cpu().numpy().sum(-1)  # Shape: (n_layers, n_tokens)
     
     # Create the heatmap
     fig = px.imshow(
         heatmap_data,
         x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,]))],
-        y=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,]))],
-        title=f"Attention Value patching (Head {head})"
+        y=[f"Head {h}" for h in range(8)],
+        title=f"Attention Value patching (Layer {layer})"
     )
     
     # Append the figure to the list
@@ -197,3 +197,49 @@ for fig in figures:
 
 
 
+# %%
+# ==============
+def attr_patch_head_out(
+    clean_cache: ActivationCache,
+    corrupted_cache: ActivationCache,
+    corrupted_grad_cache: ActivationCache,
+) -> TT["component", "pos"]:
+    labels = HEAD_NAMES
+
+    clean_head_out = clean_cache.stack_head_results(-1, return_labels=False)
+    corrupted_head_out = corrupted_cache.stack_head_results(-1, return_labels=False)
+    corrupted_grad_head_out = corrupted_grad_cache.stack_head_results(
+        -1, return_labels=False
+    )
+    head_out_attr = einops.reduce(
+        corrupted_grad_head_out * (clean_head_out - corrupted_head_out),
+        "component batch pos d_model -> component pos",
+        "sum",
+    )
+    return head_out_attr, labels
+
+
+head_out_attr, head_out_labels = attr_patch_head_out(
+    clean_cache, corrupted_cache, corrupted_grad_cache
+)
+fig = px.imshow(
+    head_out_attr.cpu(),
+    x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,]))],
+    y=head_out_labels,
+    title="Head Output Attribution Patching",
+)
+fig.show()
+sum_head_out_attr = einops.reduce(
+    head_out_attr.cpu(),
+    "(layer head) pos -> layer head",
+    "sum",
+    layer=model.cfg.n_layers,
+    head=model.cfg.n_heads,
+)
+fig = px.imshow(
+    sum_head_out_attr,
+    x = [f"Head {h}" for h in range(8)],
+    y = [f"Layer {l}" for l in range(26)],
+    title="Head Output Attribution Patching Sum Over Pos",
+)
+fig.show()
