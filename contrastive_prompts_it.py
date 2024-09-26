@@ -176,6 +176,225 @@ fig.show()
 
 # %%
 
+
+# Patch the hook_z across position and layer
+
+
+hypen_positions = torch.where(toks[0] == hypen_tok_id)[0]
+def get_attention_patching_all_heads(toks,toks2,pos,comp):
+    with torch.no_grad():
+        corrupt_logits, corrupt_cache = model.run_with_cache(toks2)
+
+    def attn_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.hook_attn_out"][:,pos,:] 
+        return acts
+    def attn_z_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_z"][:,pos,:] 
+        return acts
+    def attn_q_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_q"][:,pos,:] 
+        return acts
+    def attn_k_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_k"][:,pos,:]
+        return acts
+    def attn_v_replacement_hook(acts,hook,pos,layer):
+        acts[:,pos,:] = corrupt_cache[f"blocks.{layer}.attn.hook_v"][:,pos,:] 
+        return acts
+    logit_diff_mat = np.zeros((model.cfg.n_layers,len(list(range(46)))))
+    n_layers = model.cfg.n_layers
+
+    for layer_to_ablate in tqdm.tqdm(range(n_layers)):
+        for pos1 in range(1,46):
+            if comp == "hook_attn_out":
+                hook_func = partial(attn_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_z":
+                hook_func = partial(attn_z_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_q":
+                hook_func = partial(attn_q_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_k":
+                hook_func = partial(attn_k_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_v":
+                hook_func = partial(attn_v_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            with torch.no_grad():
+                ablated_logits = model.run_with_hooks(
+                    toks, 
+                    return_type="logits", 
+                    fwd_hooks=[(
+                        f"blocks.{layer_to_ablate}.{comp}", 
+                        hook_func
+                        )]
+                    )
+                ablated_logit_diff = ablated_logits[:,46,235248] - ablated_logits[:,46,break_tok_id]  
+                logit_diff_mat[layer_to_ablate,pos1] = ablated_logit_diff.cpu().numpy()#-CORRUPTED_BASELINE.numpy())/(CLEAN_BASELINE.numpy()-CORRUPTED_BASELINE.numpy())
+    return logit_diff_mat
+# %%
+
+logit_diff_mat = get_attention_patching_all_heads(toks, toks2,46, comp = "attn.hook_z")
+fig = px.imshow(logit_diff_mat, 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,:46]))],
+       y = [f"Layer {l}" for l in range(model.cfg.n_layers)],
+       title="Attention z Patching")
+fig.show()
+torch.cuda.empty_cache()
+# %%
+
+# Attention output patching by layer and position 
+logit_diff_mat = get_attention_patching_all_heads(toks, toks2,46, comp = "hook_attn_out")
+fig = px.imshow(logit_diff_mat, 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,:46]))],
+       y = [f"Layer {l}" for l in range(model.cfg.n_layers)],
+       title="Attention output patching")
+fig.show()
+torch.cuda.empty_cache()
+
+# %%
+
+# Attention q patching by layer and position (all_heads)
+logit_diff_mat = get_attention_patching_all_heads(toks, toks2,46, comp = "attn.hook_q")
+fig = px.imshow(logit_diff_mat, 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,:46]))],
+       y = [f"Layer {l}" for l in range(model.cfg.n_layers)],
+       title="Attention Query patching (all heads)")
+fig.show()
+torch.cuda.empty_cache()
+
+
+
+
+
+# %%
+
+# Attention v patching by layer and position (all_heads)
+logit_diff_mat = get_attention_patching_all_heads(toks, toks2,46, comp = "attn.hook_v")
+fig = px.imshow(logit_diff_mat, 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,:46]))],
+       y = [f"Layer {l}" for l in range(model.cfg.n_layers)],
+       title="Attention Value patching (all heads)")
+fig.show()
+torch.cuda.empty_cache()
+
+
+
+# %%
+
+# Attention k patching by layer and position (all_heads)
+logit_diff_mat = get_attention_patching_all_heads(toks, toks2,46, comp = "attn.hook_k")
+fig = px.imshow(logit_diff_mat, 
+       x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0,:46]))],
+       y = [f"Layer {l}" for l in range(model.cfg.n_layers)],
+       title="Attention Key patching (all heads)")
+fig.show()
+torch.cuda.empty_cache()
+
+# %%
+# Attnetion Patching By Pos and By Head
+
+
+hypen_positions = torch.where(toks[0] == hypen_tok_id)[0]
+def get_attention_patching_by_heads(toks,toks2,pos,comp):
+    with torch.no_grad():
+        corrupt_logits, corrupt_cache = model.run_with_cache(toks2)
+
+    def attn_q_replacement_hook(acts,hook,pos,layer,head):
+        acts[:,pos,head,:] = corrupt_cache[f"blocks.{layer}.attn.hook_q"][:,pos,head,:] 
+        return acts
+    def attn_k_replacement_hook(acts,hook,pos,layer,head):
+        acts[:,pos,head,:] = corrupt_cache[f"blocks.{layer}.attn.hook_k"][:,pos,head,:]
+        return acts
+    def attn_v_replacement_hook(acts,hook,pos,layer,head):
+        acts[:,pos,head,:] = corrupt_cache[f"blocks.{layer}.attn.hook_v"][:,pos,head,:] 
+        return acts
+
+    if comp == "attn.hook_q":
+        n_heads = 8
+    elif comp == "attn.hook_k":
+        n_heads = 4
+    elif comp == "attn.hook_v":
+        n_heads = 4
+    logit_diff_mat = np.zeros((model.cfg.n_layers,len(list(range(46))),n_heads))
+    n_layers = model.cfg.n_layers
+    for layer_to_ablate in tqdm.tqdm(range(n_layers)):
+        for pos1 in range(1,46):
+            if comp == "attn.hook_q":
+                hook_func = partial(attn_q_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_k":
+                hook_func = partial(attn_k_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            elif comp == "attn.hook_v":
+                hook_func = partial(attn_v_replacement_hook,pos = pos1, layer = layer_to_ablate) 
+            for head in range(n_heads):
+                with torch.no_grad():
+                    ablated_logits = model.run_with_hooks(
+                        toks, 
+                        return_type="logits", 
+                        fwd_hooks=[(
+                            f"blocks.{layer_to_ablate}.{comp}", 
+                            hook_func
+                            )]
+                        )
+                    ablated_logit_diff = ablated_logits[:,46,235248] - ablated_logits[:,46,break_tok_id]  
+                    logit_diff_mat[layer_to_ablate,pos1,head] = ablated_logit_diff.cpu().numpy()#-CORRUPTED_BASELINE.numpy())/(CLEAN_BASELINE.numpy()-CORRUPTED_BASELINE.numpy())
+    return n_heads,logit_diff_mat
+
+
+# %%
+
+# Attention Value Patching by Head and by position
+
+
+n_heads, logit_diff = get_attention_patching_by_heads(toks,toks2,46,"attn.hook_v")
+
+
+
+# %%
+figures = []
+
+# Iterate over each head to create a heatmap for that head
+for head in range(n_heads):
+    # Slice the matrix for the current head
+    heatmap_data = logit_diff[:, :, head]  # Shape: (n_layers, n_tokens)
+    
+    # Create the heatmap
+    fig = px.imshow(
+        heatmap_data,
+        x=[f"{tok} {i}" for i, tok in enumerate(model.to_str_tokens(toks[0, :46]))],
+        y=[f"Layer {l}" for l in range(model.cfg.n_layers)],
+        title=f"Attention Value patching (Head {head})"
+    )
+    
+    # Append the figure to the list
+    figures.append(fig)
+
+# Display all figures (you can choose to display them one by one or in a grid)
+for fig in figures:
+    fig.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# %%
 from transformer_lens import patching
 with torch.no_grad():
     _,clean_cache = model.run_with_cache(toks)
