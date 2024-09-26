@@ -2,6 +2,7 @@
 
 
 ### 1. Introduction
+
 Gemma 2 2b is a Small Language Model, created by google that was made public in Summer 2024. This model was released along a suite of Sparse Autoenocders and Transcoders trained on their activations in various locations.
 
 
@@ -14,10 +15,10 @@ In this post we will explore the mechanisms behind Gemma 2 2b's ability to creat
 
 Specially we are interested in the mechanism by which Gemma knows when to end a list, this is task is interesting for the following reasons:
 
-- Due to the larger Gemma 2 vocabulary is eassy to create one token per item list templaets.
+- Due to the larger Gemma 2 vocabulary is eassy to create one token per item list templates.
 - The instruction tuning of the model, enables the induction of different behaviors in the model with minimal 
 - The open endedness of this task enables taking into account sampling dynamics on the decoding process of the model (this is temperature and sampling method).
-- The temmplate structure enables a clear analysis of a priori very broad properties of the model like "list ending behavior" by proxies such as the probability of outputing a hypen after a list item which clearly indicates that the list is about to continue.
+- The template structure enables a clear analysis of a priori very broad properties of the model like "list ending behavior" by proxies such as the probability of outputing a hypen after a list item which clearly indicates that the list is about to continue.
 
 
 
@@ -61,7 +62,7 @@ Few interesting things that were interesting:
 ### 4. Logit Lens
 
 
-Taking advantage of the shared RS across layers we can use the unembedding matrix to project into vocabulary space activations across the layers, to get an intuition of how a behavior builds trought the layers.
+Taking advantage of the shared RS across layers we can use the unembedding matrix to project into vocabulary space activations across the layers, to get an intuition of how a behavior builds trough the layers.
 
 
 
@@ -74,10 +75,6 @@ This important locations are the various positions in which the list could have 
 Inspecting the different location Logit Lens, we see a shared trend of increasing logit_difference across later items in the list and layers.
 
 Being layer 18 to 26 and the list items with white space tokens the breaking points for the most difference in logit differnce layer and item wise.
-
-
-
-
 
 
 
@@ -111,16 +108,22 @@ This enable simple patching experiments to identify crucial model components for
 
 ### 6. Feature Attribution
 
-To bound the complexity of using Sparse Autoencoders, to inestigate the model behavior we will focus on residual stream features.
+To bound the complexity of using Sparse Autoencoders, to investigate the model behavior we will focus on residual stream features.
 
 One problem that is apparent to anyone that has tried to use SparseAutoencoders for real world task is that the memory footprint of SAE experiments rapidly explodes as we add layers.
 
 The intuitive solution to this problem is to come up with heuristics to select a few layers to use SAEs in, to maximize the faithfulness/GB vram ratio.
 
+Possible heuristics are:
 
-- Attribution wrt to the logit differnce
-- Attribution wrt to the -log prob
-- Feature attribution (most important later layer feaurtes) (If I have enough time)
+- Use Logit Lens style techniques to select the most important layers, by 
+- Use ablation over positions and layers to select the most important layers. (Some discounting should be done to no give too much importance to the last position or last layers)
+
+
+
+- Attribution w.r.t to the logit differnce
+- Attribution w.r.t to the -log prob
+- Feature attribution (most important later layer features) (If I have enough time)
 
 
 
@@ -137,7 +140,6 @@ The intuitive solution to this problem is to come up with heuristics to select a
 
 
 ### Appendix
-
 
 **Item break vs White space Locations**
 
