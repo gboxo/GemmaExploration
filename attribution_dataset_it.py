@@ -92,6 +92,13 @@ if __name__ == "__main__":
     generation_dict = torch.load("gemma2_generation_dict.pt")
 
     full_strings = get_all_string_min_l0_resid_gemma()
+    full_strings = {
+            0:"layer_0/width_16k/average_l0_105",
+            5:"layer_5/width_16k/average_l0_68",
+            10:"layer_10/width_16k/average_l0_77",
+            15:"layer_15/width_16k/average_l0_78",
+            20:"layer_20/width_16k/average_l0_71",
+                    }
     #layers = [5]
     layers = [0,5,10,15,20]
     saes_dict = {}
