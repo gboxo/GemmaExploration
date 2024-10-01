@@ -28,9 +28,9 @@ def generate_lists(topics):
     
 
 
-    for temp in [0.1,0.5,0.7,0.9,1.3]:
+    for temp in tqdm([0.1,0.5,0.7,0.9,1.3]):
         generation_dict[temp] = {}
-        for topic in tqdm(topics):
+        for topic in topics:
             generation_dict[temp][topic] = [] 
             for _ in range(5):
                 messages = [
