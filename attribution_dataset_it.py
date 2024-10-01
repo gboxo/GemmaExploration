@@ -75,12 +75,13 @@ def get_all_features(model, generation_dict, saes_dict):
     blanck_tok_id = 235248
     all_tuples_dict = defaultdict(dict)
     top_k = 50
-    for topic, topic_list in tqdm.tqdm(generation_dict.items()):
-        for eg_id,toks in enumerate(topic_list):
-            attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
-            tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
-            all_tuples_dict[topic][eg_id] = tuples
-    torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos.pt")
+    for key,val in saes_dict.items():
+        for topic, topic_list in tqdm.tqdm(generation_dict.items()):
+            for eg_id,toks in enumerate(topic_list):
+                attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
+                tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
+                all_tuples_dict[topic][eg_id] = tuples
+        torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos.pt")
 
 
 
