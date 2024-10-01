@@ -34,7 +34,7 @@ def generate_lists(topics):
             generation_dict[temp][topic] = [] 
             for _ in range(5):
                 messages = [
-                    {"role": "user", "content": f"Provide me with a short list with a few {topic}. Just provide the names, no need for any other information."},
+                    {"role": "user", "content": f"Provide me with a short list of {topic}. Just provide the names, no need for any other information."},
                 ]
                 input_ids = model.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
