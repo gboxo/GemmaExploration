@@ -5,18 +5,7 @@ from transformer_lens.hook_points import HookPoint
 from functools import partial
 from sae_lens import HookedSAETransformer, SAE, SAEConfig
 from gemma_utils import get_gemma_2_config, gemma_2_sae_loader
-import numpy as np
 import torch
-from jaxtyping import Int, Float
-from typing import List, Optional, Any
-from torch import Tensor
-from torch.utils.data import Dataset, DataLoader
-from transformer_lens.utils import get_act_name
-from IPython.display import display, HTML
-import plotly.express as px
-
-import pandas as pd
-import plotly.express as px
 
 
 # %%
@@ -78,10 +67,6 @@ from functools import partial
 from typing import Optional
 def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_pos):
 
-    #def hook_cache_error_term_generate(act,hook):
-    #    cache_error[hook.name].append(act)
-    #    return act
-
 
     def hook_error_ablate(act, hook):
         x = torch.zeros_like(act)
@@ -112,22 +97,6 @@ def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_po
         #fwd_hooks.append((sae.cfg.hook_name+".hook_sae_error",hook_cache_error_term_generate))
 
     names_filter = lambda x: ".hook_sae_error" in x
-    """
-    cache_error = defaultdict(list) 
-    if generate:
-        with torch.no_grad():
-            with model.hooks(fwd_hooks = fwd_hooks):
-                out = model.generate(prompt,
-                                     max_new_tokens = 100,
-                                     temperature = 0.7,
-                                     top_p = 0.8,
-                                     stop_at_eos=True,
-                                     verbose = False,)
-        error_cache = {k:torch.cat(v) for k,v in cache_error.items()}
-        print(error_cache.keys())
-
-    else:
-    """
     if True:
         with torch.no_grad():
             _,error_cache = model.run_with_cache(prompt, names_filter = names_filter)

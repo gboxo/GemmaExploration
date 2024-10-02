@@ -55,6 +55,7 @@ def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb
 
 
 
+
 def compute_top_k_feature_all(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb_pos:int):
     func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
     feature_attribution_df = calculate_feature_attribution(
@@ -105,15 +106,15 @@ def get_all_features(model, generation_dict, saes_dict):
     eot_tok_id = 107
     blanck_tok_id = 235248
     all_tuples_dict = defaultdict(dict)
-    top_k = 100
+    top_k = 200
     for topic, topic_list in tqdm.tqdm(generation_dict.items()):
         for eg_id,toks in enumerate(topic_list):
             attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
-            #tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
-            tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
+            tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
+            #tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             all_tuples_dict[topic][eg_id] = tuples
     #torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_log_prob.pt")
-    torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_log_prob_all.pt")
+    torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_logit_diff_all_attn.pt")
 
 
 
@@ -145,8 +146,8 @@ if __name__ == "__main__":
     saes_dict = {}
 
     with torch.no_grad():
-        for layer in attn_layers:
-            repo_id = attn_repo_id#"google/gemma-scope-2b-pt-res"
+        for layer in layers:
+            repo_id = "google/gemma-scope-2b-pt-res"
             folder_name = full_strings_attn[layer]
             config = get_gemma_2_config(repo_id, folder_name)
             cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
@@ -158,9 +159,5 @@ if __name__ == "__main__":
             saes_dict[sae.cfg.hook_name] = sae
 
     get_all_features(model, generation_dict, saes_dict)
-
-
-
-
 
 

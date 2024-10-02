@@ -1,3 +1,4 @@
+
 # %%
 from attribution_utils import calculate_feature_attribution
 from torch.nn.functional import log_softmax
@@ -20,7 +21,8 @@ model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
 generation_dict = torch.load("gemma2_generation_dict.pt")
 toks = generation_dict["Vegetables"][0]
 
-
+toks2 = toks.clone()
+toks2[0,8] = 1497
 
 
 # %%
@@ -44,7 +46,7 @@ def metric_fn(logits: torch.Tensor, pos:int = 46,tok0:int = 235248,tok1:int = 10
 
 
 # Metric -log prob
-def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) -> torch.Tensor:
+def metric_fn_log_prob(logits: torch.Tensor, pos:int = 43,tok_id: int = 235248) -> torch.Tensor:
     log_probs = log_softmax(logits, dim=-1)
     return -log_probs[0,pos,tok_id]
 
@@ -53,9 +55,15 @@ def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) 
 
 
 
-full_strings = get_all_string_min_l0_resid_gemma()
 #layers = [5]
 layers = [0,5,10,15,20]
+full_strings = {
+        0:"layer_0/width_16k/average_l0_105",
+        5:"layer_5/width_16k/average_l0_68",
+        10:"layer_10/width_16k/average_l0_77",
+        15:"layer_15/width_16k/average_l0_78",
+        20:"layer_20/width_16k/average_l0_71",
+                }
 saes_dict = {}
 
 with torch.no_grad():
@@ -100,45 +108,42 @@ hypen_tok_id = 235290
 break_tok_id = 108
 eot_tok_id = 107
 blanck_tok_id = 235248
+
 from collections import defaultdict
-def compute_top_k_feature_intersection(model,toks, saes_dict, k:int = 10):
-    feature_attribution_df = calculate_feature_attribution(
-        model = model,
-        input = toks,
-        metric_fn = metric_fn,
-        include_saes=saes_dict,
-        include_error_term=True,
-        return_logits=True,
-    )
-    all_df_dict = defaultdict(dict) 
-    for attrb_pos,(tok1,tok2) in zip([46,48],[(blanck_tok_id,break_tok_id),(eot_tok_id,hypen_tok_id)]):
-        for i,func in enumerate([metric_fn, metric_fn_log_prob]):
-            if i == 0:
-                func = partial(func, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
-                metric_name = "loggit_diff"
-            else:
-                func = partial(func, pos=attrb_pos,tok_id = tok1)
-                metric_name = "log_prob"
-            feature_attribution_df = calculate_feature_attribution(
-                model = model,
-                input = toks,
-                metric_fn = func,
-                include_saes=saes_dict,
-                include_error_term=True,
-                return_logits=True,
-            )
-            all_tup = []
-            for key in saes_dict.keys():
-                df_long_nonzero = convert_sparse_feature_to_long_df(feature_attribution_df.sae_feature_attributions[key][0])
-                df_long_nonzero.sort_values("attribution", ascending=True)
-                df_long_nonzero = df_long_nonzero.nlargest(50, "attribution")
-                tuple_list = [(pos,feat) for pos,feat in zip(df_long_nonzero["position"],df_long_nonzero["feature"])]
-                all_tup.append(tuple_list)
-            all_df_dict[metric_name][tok1] = all_tup
-    return all_df_dict
+feature_attribution_df_clean = calculate_feature_attribution(
+    model = model,
+    input = toks,
+    metric_fn = metric_fn_log_prob,
+    include_saes=saes_dict,
+    include_error_term=True,
+    return_logits=True,
+)
 
-
+feature_attribution_df_corrupt = calculate_feature_attribution(
+    model = model,
+    input = toks2,
+    metric_fn = metric_fn_log_prob,
+    include_saes=saes_dict,
+    include_error_term=True,
+    return_logits=True,
+)
 
 
 
 # %%
+
+
+attribution_diff = [] 
+for key in saes_dict.keys():
+    clean_key_attribution = feature_attribution_df_clean.sae_feature_attributions[key][0]
+    corrupt_key_attribution = feature_attribution_df_corrupt.sae_feature_attributions[key][0]
+    diff = clean_key_attribution - corrupt_key_attribution
+    df = convert_sparse_feature_to_long_df(diff)
+    df.sort_values("attribution", ascending=True)
+    df = df.nlargest(10, "attribution")
+    attribution_diff.append(df)
+
+    
+
+
+
