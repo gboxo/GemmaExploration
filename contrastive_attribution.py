@@ -137,7 +137,7 @@ attribution_diff = []
 for key in saes_dict.keys():
     clean_key_attribution = feature_attribution_df_clean.sae_feature_attributions[key][0]
     corrupt_key_attribution = feature_attribution_df_corrupt.sae_feature_attributions[key][0]
-    diff = clean_key_attribution - corrupt_key_attribution
+    diff = corrupt_key_attribution - clean_key_attribution
     df = convert_sparse_feature_to_long_df(diff)
     df.sort_values("attribution", ascending=True)
     df = df.nlargest(10, "attribution")

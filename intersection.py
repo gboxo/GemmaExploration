@@ -83,4 +83,22 @@ plt.show()
 
 
 
+# %%
+import torch
+from collections import defaultdict, Counter
 
+x = torch.load("all_tuples_dict_top_100_item_pos_log_prob_all_attn.pt")
+
+
+# %%
+all_tuples = []
+for key,val in x.items():
+    for eg,tups in val.items():
+        for pos,feat,layer in tups:
+            if pos == 0:
+                continue
+            all_tuples.append((pos,feat,layer))
+
+# %%
+
+Counter(all_tuples).most_common(20)
