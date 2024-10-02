@@ -32,7 +32,8 @@ def convert_sparse_feature_to_long_df(sparse_tensor: torch.Tensor) -> pd.DataFra
 
 def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb_pos:int):
 
-    func = partial(metric_fn, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
+    #func = partial(metric_fn, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
+    func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
     feature_attribution_df = calculate_feature_attribution(
         model = model,
         input = toks,
@@ -52,6 +53,36 @@ def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb
 
     return all_tup
 
+
+
+def compute_top_k_feature_all(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb_pos:int):
+    func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
+    feature_attribution_df = calculate_feature_attribution(
+        model = model,
+        input = toks,
+        metric_fn = func,
+        include_saes=saes_dict,
+        include_error_term=True,
+        return_logits=True,
+    )
+    all_df = []  # Define the list where all DataFrames will be stored
+    for key in saes_dict.keys():
+        # Convert the sparse feature attributions to long format DataFrame
+        df_long_nonzero = convert_sparse_feature_to_long_df(
+            feature_attribution_df.sae_feature_attributions[key][0].cpu()
+        )
+        
+        df_long_nonzero = df_long_nonzero.sort_values("attribution", ascending=True)  # Reassign the sorted DataFrame
+        df_long_nonzero["Layer"] = key
+        all_df.append(df_long_nonzero)
+
+    final_df = pd.concat(all_df, axis=0, ignore_index=True) 
+
+
+    final_df_top = final_df.nlargest(k, "attribution")
+    tuple_list = [(pos,feat,layer) for pos,feat,layer in zip(final_df_top["position"],final_df_top["feature"],final_df_top["Layer"])]
+    torch.cuda.empty_cache()
+    return tuple_list
 
 
 # %%
@@ -74,14 +105,15 @@ def get_all_features(model, generation_dict, saes_dict):
     eot_tok_id = 107
     blanck_tok_id = 235248
     all_tuples_dict = defaultdict(dict)
-    top_k = 50
-    for key,val in saes_dict.items():
-        for topic, topic_list in tqdm.tqdm(generation_dict.items()):
-            for eg_id,toks in enumerate(topic_list):
-                attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
-                tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
-                all_tuples_dict[topic][eg_id] = tuples
-        torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos.pt")
+    top_k = 100
+    for topic, topic_list in tqdm.tqdm(generation_dict.items()):
+        for eg_id,toks in enumerate(topic_list):
+            attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
+            #tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
+            tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
+            all_tuples_dict[topic][eg_id] = tuples
+    #torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_log_prob.pt")
+    torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_log_prob_all.pt")
 
 
 
@@ -100,14 +132,22 @@ if __name__ == "__main__":
             15:"layer_15/width_16k/average_l0_78",
             20:"layer_20/width_16k/average_l0_71",
                     }
-    #layers = [5]
+    full_strings_attn = {
+            2:"layer_2/width_16k/average_l0_93",
+            7:"layer_7/width_16k/average_l0_99",
+            14:"layer_14/width_16k/average_l0_71",
+            18:"layer_18/width_16k/average_l0_72",
+            22:"layer_22/width_16k/average_l0_106",
+                    }
+    attn_repo_id = "google/gemma-scope-2b-pt-att"
+    attn_layers = [2,7,14,18,22]
     layers = [0,5,10,15,20]
     saes_dict = {}
 
     with torch.no_grad():
-        for layer in layers:
-            repo_id = "google/gemma-scope-2b-pt-res"
-            folder_name = full_strings[layer]
+        for layer in attn_layers:
+            repo_id = attn_repo_id#"google/gemma-scope-2b-pt-res"
+            folder_name = full_strings_attn[layer]
             config = get_gemma_2_config(repo_id, folder_name)
             cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
             sae_cfg = SAEConfig.from_dict(cfg)
