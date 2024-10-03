@@ -6,7 +6,10 @@ from functools import partial
 from sae_lens import HookedSAETransformer, SAE, SAEConfig
 from gemma_utils import get_gemma_2_config, gemma_2_sae_loader
 import torch
-
+from attribution_utils import calculate_feature_attribution
+from collections import defaultdict
+from functools import partial
+from typing import Optional
 
 # %%
 model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
@@ -30,18 +33,19 @@ filter_break_pos = [pos.item() for pos in break_positions if pos+1 in hypen_posi
 
 
 # %%
-pos = 46
+pos = 43
 
-def metric_fn(logits: torch.Tensor, pos:int = 46) -> torch.Tensor:
+def metric_fn(logits: torch.Tensor, pos:int = 43) -> torch.Tensor:
     return logits[0,pos,235248] - logits[0,pos,break_tok_id]
 
 # %%
 
 
 
-full_strings = get_all_string_min_l0_resid_gemma()
-#layers = [5]
-layers = [0,5,10,15,20]
+full_strings = {
+        10:"layer_10/width_16k/average_l0_77",
+        }
+layers = [10]
 saes_dict = {}
 
 with torch.no_grad():
@@ -54,17 +58,23 @@ with torch.no_grad():
         sae = SAE(sae_cfg)
         sae.load_state_dict(state_dict)
         sae.to("cuda:0")
+        sae.d_head = 256
         sae.use_error_term = True
         saes_dict[sae.cfg.hook_name] = sae
 
 
 
+feature_attribution_df = calculate_feature_attribution(
+    model = model,
+    input = toks,
+    metric_fn = metric_fn,
+    include_saes=saes_dict,
+    include_error_term=True,
+    return_logits=True,
+)
 
 
 # %%
-from collections import defaultdict
-from functools import partial
-from typing import Optional
 def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_pos):
 
 
