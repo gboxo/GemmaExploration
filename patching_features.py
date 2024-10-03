@@ -73,8 +73,96 @@ feature_attribution_df = calculate_feature_attribution(
     return_logits=True,
 )
 
+def convert_sparse_feature_to_long_df(sparse_tensor: torch.Tensor) -> pd.DataFrame:
+    """
+    Convert a sparse tensor to a long format pandas DataFrame.
+    """
+    df = pd.DataFrame(sparse_tensor.detach().cpu().numpy())
+    df_long = df.melt(ignore_index=False, var_name='column', value_name='value')
+    df_long.columns = ["feature", "attribution"]
+    df_long_nonzero = df_long[df_long['attribution'] != 0]
+    df_long_nonzero = df_long_nonzero.reset_index().rename(columns={'index': 'position'})
+    return df_long_nonzero
+
+
+
+
+for key in saes_dict.keys():
+    df_long_nonzero = convert_sparse_feature_to_long_df(feature_attribution_df.sae_feature_attributions[key][0])
+
+
+print(df_long_nonzero.nlargest(10, 'attribution'))
+
 
 # %%
+
+model.reset_hooks(including_permanent=True)
+features_ablate_pos_layer = {
+        10:{
+            "Features":[4392,12277,5717,2587,12277,2587,2804,12277,2533,14780],
+            "Positions":[0,9,9,42,12,41,41,10,9,39]
+
+            }
+        }
+
+def gen_with_ablation(model,saes_dict, prompt, ablation_feature_by_layer_pos):
+
+    def ablate_feature_hook(feature_activations, hook, feature_ids, positions = None):
+        if feature_activations.shape[1] == 1:
+            feature_activations[:,:,feature_ids] = 0
+            return feature_activations
+    
+        if positions is None:
+            feature_activations[:,:,feature_ids] = 0
+        elif len(positions) == len(feature_ids):
+            for position, feature_id in zip(positions, feature_ids):
+                feature_activations[:,position,feature_id] = 0
+        else:
+            feature_activations[:,positions,feature_ids] = 0
+        return feature_activations
+    tokens = prompt[:,:44]
+
+    model.reset_hooks()
+    model.reset_saes()
+
+    model.reset_hooks()
+    model.reset_saes()
+    fwd_hooks = []
+    for _,sae in saes_dict.items():
+        sae.use_error_term = True
+        model.add_sae(sae)
+    for layer, sae_dict in ablation_feature_by_layer_pos.items():
+        ablation_features = sae_dict["Features"]
+        positions = sae_dict["Positions"]
+        ablation_hook = partial(ablate_feature_hook, feature_ids = ablation_features, positions = positions)
+        hook_point_act = f"blocks.{layer}.hook_resid_post.hook_sae_acts_post"
+        fwd_hooks.append((hook_point_act, ablation_hook))
+    
+    with torch.no_grad():
+        with model.hooks(fwd_hooks = fwd_hooks):
+            out = model.generate(
+                    tokens,
+                    max_new_tokens = 100,
+                    temperature = 0.7,
+                    top_p = 0.8,
+                    stop_at_eos=True,
+                    verbose=False,
+
+                    )
+    model.reset_hooks()
+    model.reset_saes()
+
+    return out
+
+
+
+gen_toks = gen_with_ablation(model, saes_dict, toks, features_ablate_pos_layer)
+print(model.to_string(gen_toks))
+torch.cuda.empty_cache()
+
+
+# %%
+"""
 def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_pos):
 
 
@@ -148,7 +236,6 @@ def prompt_with_ablation(model, saes_dict, prompt, ablation_features_by_layer_po
 
 
 
-# %%
 # Layer 5
 model.reset_hooks(including_permanent=True)
 features_ablate_pos_layer = {
@@ -180,4 +267,4 @@ features_ablate_pos_layer = {
         }
 logits_with_ablation = prompt_with_ablation(model, saes_dict, toks, features_ablate_pos_layer)
 
-
+"""
