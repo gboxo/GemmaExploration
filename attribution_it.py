@@ -1,4 +1,3 @@
-# %%
 from attribution_utils import calculate_feature_attribution
 from torch.nn.functional import log_softmax
 from gemma_utils import get_all_string_min_l0_resid_gemma
@@ -34,6 +33,37 @@ break_positions = torch.where(toks[0] == break_tok_id)[0]
 eot_positions = torch.where(toks[0] == eot_tok_id)[0]
 filter_break_pos = [pos.item() for pos in break_positions if pos+1 in hypen_positions]
 
+
+# %%
+
+from rich.console import Console
+from rich.table import Table
+
+def plot_process_info(metrics_info: dict):
+    """
+    Plot a table with important information about the process.
+
+    Args:
+        metrics_info (dict): A dictionary containing metrics information.
+    """
+    console = Console()
+    
+    # Create a table
+    table = Table(title="Process Metrics Information")
+
+    # Define the columns
+    table.add_column("Metric Name", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Token ID", justify="center", style="magenta")
+    table.add_column("Top Features", justify="right", style="green")
+
+    # Populate the table with data
+    for metric_name, data in metrics_info.items():
+        for token_id, features in data.items():
+            top_features = ', '.join([f"{feat[1]} (pos: {feat[0]})" for feat in features[:5]])  # Show top 5 features
+            table.add_row(metric_name, str(token_id), top_features)
+
+    # Print the table
+    console.print(table)
 
 
 

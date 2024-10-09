@@ -124,9 +124,6 @@ def gen_with_ablation(model,saes_dict, prompt, ablation_feature_by_layer_pos):
 
     model.reset_hooks()
     model.reset_saes()
-
-    model.reset_hooks()
-    model.reset_saes()
     fwd_hooks = []
     for _,sae in saes_dict.items():
         sae.use_error_term = True

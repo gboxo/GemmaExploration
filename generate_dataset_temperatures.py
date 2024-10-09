@@ -1,11 +1,10 @@
 from sae_lens import HookedSAETransformer, SAE, SAEConfig
+import logging
 import torch
 from tqdm import tqdm
 
-
-
-
-
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def sample(model,input_ids,temperature):
@@ -25,14 +24,12 @@ def sample(model,input_ids,temperature):
 
 def generate_lists(topics):
     generation_dict = {}
-    
-
-
     for temp in tqdm([0.1,0.5,0.7,0.9,1.3]):
         generation_dict[temp] = {}
         for topic in topics:
             generation_dict[temp][topic] = [] 
-            for _ in range(5):
+            for generation in range(5):
+                logging.info(f"Generating for topic '{topic}' at temperature {temp}. Generation {generation + 1}/5")
                 messages = [
                     {"role": "user", "content": f"Provide me with a short list of {topic}. Just provide the names, no need for any other information."},
                 ]

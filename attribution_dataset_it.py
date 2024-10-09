@@ -27,6 +27,8 @@ def convert_sparse_feature_to_long_df(sparse_tensor: torch.Tensor) -> pd.DataFra
     df_long_nonzero = df_long[df_long['attribution'] != 0]
     df_long_nonzero = df_long_nonzero.reset_index().rename(columns={'index': 'position'})
     return df_long_nonzero
+# %%
+
 
 # %%
 
