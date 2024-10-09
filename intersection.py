@@ -105,7 +105,8 @@ for key, val in x.items():
 for key in topic_features.keys():
     top_feats = {layer: sorted(features)[:10] for layer, features in topic_features[key].items()}
     top_positions = {layer: sorted(positions)[:10] for layer, positions in topic_positions[key].items()}
-    all_tuples_df.append({"Topic": key, "Top-10 feats": top_feats, "Top-10 positions": top_positions})
+    for layer in top_feats.keys():
+        all_tuples_df.append({"Topic": key, "Layer": layer, "Top-10 feats": top_feats[layer], "Top-10 positions": top_positions[layer]})
 
 import pandas as pd
 all_tuples_df = pd.DataFrame(all_tuples_df)
@@ -113,6 +114,21 @@ all_tuples_df.to_html("all_tuples_df.html")
 
 
 
+# %%
+from  rich.console import Console 
+from rich.table import Table 
+
+def display_table(dataframe):
+    table = Table(show_header=True, header_style="bold magenta")
+    for column in dataframe.columns:
+        table.add_column(column)
+    
+    for index, row in dataframe.iterrows():
+        table.add_row(*[str(value) for value in row])
+    
+    console = Console()
+    console.print(table)
 
 
+display_table(all_tuples_df)
 
