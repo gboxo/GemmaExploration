@@ -15,9 +15,9 @@ import pandas as pd
 
 
 # %%
-model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
+model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cpu")
 generation_dict = torch.load("gemma2_generation_dict.pt")
-toks = generation_dict["Vegetables"][0]
+toks = generation_dict["Animals"][0]
 
 
 
@@ -84,8 +84,8 @@ def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) 
 
 
 full_strings = get_all_string_min_l0_resid_gemma()
-#layers = [5]
-layers = [0,5,10,15,20]
+layers = [5]
+#layers = [0,5,10,15,20]
 saes_dict = {}
 
 with torch.no_grad():
@@ -97,7 +97,7 @@ with torch.no_grad():
         sae_cfg = SAEConfig.from_dict(cfg)
         sae = SAE(sae_cfg)
         sae.load_state_dict(state_dict)
-        sae.to("cuda:0")
+        #sae.to("cuda:0")
         sae.use_error_term = True
         saes_dict[sae.cfg.hook_name] = sae
 
@@ -140,7 +140,7 @@ def compute_top_k_feature_intersection(model,toks, saes_dict, k:int = 10):
         return_logits=True,
     )
     all_df_dict = defaultdict(dict) 
-    for attrb_pos,(tok1,tok2) in zip([46,48],[(blanck_tok_id,break_tok_id),(eot_tok_id,hypen_tok_id)]):
+    for attrb_pos,(tok1,tok2) in zip([44,46],[(blanck_tok_id,break_tok_id),(eot_tok_id,hypen_tok_id)]):
         for i,func in enumerate([metric_fn, metric_fn_log_prob]):
             if i == 0:
                 func = partial(func, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
@@ -171,3 +171,46 @@ def compute_top_k_feature_intersection(model,toks, saes_dict, k:int = 10):
 
 
 # %%
+all_df_dict = compute_top_k_feature_intersection(model,toks, saes_dict, k = 10)
+plot_process_info(all_df_dict)
+
+def plot_comparison_table(all_df_dict: dict):
+    """
+    Plot a comparison table of metrics and attribute positions with the most common (feature, pos) tuples.
+    
+    Args:
+        all_df_dict (dict): A dictionary containing metrics information.
+    """
+    console = Console()
+    
+    # Create a table
+    table = Table(title="Comparison of Metrics and Attribute Positions")
+
+    # Define the columns
+    table.add_column("Metric Name", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Token ID", justify="center", style="magenta")
+    table.add_column("Most Common Feature", justify="right", style="green")
+    table.add_column("Position", justify="right", style="green")
+    table.add_column("Frequency", justify="right", style="green")
+
+
+    # Add pairwise comparison
+    for metric_name1, data1 in all_df_dict.items():
+        for token_id1, features1 in data1.items():
+            for metric_name2, data2 in all_df_dict.items():
+                if metric_name1 != metric_name2:
+                    for token_id2, features2 in data2.items():
+                        if token_id1 == token_id2:
+                            # Find the most common feature and position for the second metric
+                            feature_counts2 = defaultdict(int)
+                            for feature_list in features2:
+                                for pos, feat in feature_list:
+                                    feature_counts2[(feat, pos)] += 1
+                            
+                            most_common2 = max(feature_counts2.items(), key=lambda x: x[1])[0]  # Get the most common feature
+                            table.add_row(f"{metric_name1} vs {metric_name2}", str(token_id1), str(most_common2[0]), str(most_common2[1]), str(feature_counts2[most_common2]))
+
+    # Print the table
+    console.print(table)
+
+comparison_df = plot_comparison_table(all_df_dict)
