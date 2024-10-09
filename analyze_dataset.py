@@ -1,4 +1,4 @@
-
+import pandas as pd
 import numpy as np
 import torch
 import tqdm
@@ -71,7 +71,6 @@ def get_stats(dict_toks):
 
                 stats_dict[topic][temp].append({"num_tokens": number_of_tokens_per_item, "num_items": num_items, "avg_tokens_per_item": number_of_tokens_per_item, "blank_positions": white_spaces_tok_pos})
             # Compute the shannon idex for each item in the examples
-            print(topic_items)
             for i,items in topic_items.items():
                 item_counts = Counter(items)
                 total_items = len(items)
@@ -88,3 +87,23 @@ def get_stats(dict_toks):
 
 
 stats_dict, stats_diversity = get_stats(generation_dict)
+
+
+# Convert stats_diversity to DataFrame
+diversity_df = pd.DataFrame.from_dict(
+    {topic: {temp: shannon for temp, shannon in temp_dict.items()} for topic, temp_dict in stats_diversity.items()},
+    orient='index'
+
+)
+
+
+# Add an extra row with the variance of the shannon index 
+diversity_df.loc["variance"] = diversity_df.var()
+
+print(diversity_df.head())
+diversity_df.to_html("diversity_df.html")
+
+
+
+
+
