@@ -23,12 +23,15 @@ def sample(model,input_ids,temperature):
 
 
 def generate_lists(topics):
+    temps = [0.1,0.5,0.7,0.9,1.3]
+    temps = [0.1,1.3]
+
     generation_dict = {}
-    for temp in tqdm([0.1,0.5,0.7,0.9,1.3]):
+    for temp in tqdm(temps):
         generation_dict[temp] = {}
         for topic in topics:
             generation_dict[temp][topic] = [] 
-            for generation in range(5):
+            for generation in range(2):
                 logging.info(f"Generating for topic '{topic}' at temperature {temp}. Generation {generation + 1}/5")
                 messages = [
                     {"role": "user", "content": f"Provide me with a short list of {topic}. Just provide the names, no need for any other information."},
@@ -50,5 +53,6 @@ if __name__ == "__main__":
     "Fruits","Vegetables","Car Brands","Sports","Rivers","Mountains","Ocean",
     "Inventions","Languages","Capital Cities","Movies","Books","TV Shows",
     "Famous Scientists","Famous Writers","Video Games","Companies","Colors"]
+    topics = ["City Names","Countries","Animals"]
     generation_dict = generate_lists(topics)
-    torch.save(generation_dict, "gemma2_generation_temps_dict.pt")
+    torch.save(generation_dict, "gemma2_generation_temps_dict_v0.pt")

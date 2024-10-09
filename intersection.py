@@ -91,14 +91,28 @@ x = torch.load("all_tuples_dict_top_100_item_pos_log_prob_all_attn.pt")
 
 
 # %%
-all_tuples = []
-for key,val in x.items():
-    for eg,tups in val.items():
-        for pos,feat,layer in tups:
-            if pos == 0:
-                continue
-            all_tuples.append((pos,feat,layer))
+all_tuples_df = []
+topic_features = defaultdict(lambda: defaultdict(set))
+topic_positions = defaultdict(lambda: defaultdict(set))
 
-# %%
+for key, val in x.items():
+    for eg_id, tups in val.items():
+        for pos, feat, layer in tups:
+            if pos != 0:
+                topic_features[key][layer].add(feat)
+                topic_positions[key][layer].add(pos)
 
-Counter(all_tuples).most_common(20)
+for key in topic_features.keys():
+    top_feats = {layer: sorted(features)[:10] for layer, features in topic_features[key].items()}
+    top_positions = {layer: sorted(positions)[:10] for layer, positions in topic_positions[key].items()}
+    all_tuples_df.append({"Topic": key, "Top-10 feats": top_feats, "Top-10 positions": top_positions})
+
+import pandas as pd
+all_tuples_df = pd.DataFrame(all_tuples_df)
+all_tuples_df.to_html("all_tuples_df.html")
+
+
+
+
+
+
