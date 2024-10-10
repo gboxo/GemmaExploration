@@ -43,7 +43,7 @@ def get_all_active_features(model, generation_dict,saes_dict):
         for eg_id,toks in enumerate(topic_list):
             traces_dict = compute_max_trace(model,toks,saes_dict)
             all_tuples_dict[topic][eg_id] = traces_dict
-    torch.save(all_tuples_dict, f"all_max_traces_dict.pt")
+    torch.save(all_tuples_dict, f"all_max_traces_dict_attn.pt")
 
 # %%
 if __name__ == "__main__":
@@ -67,9 +67,9 @@ if __name__ == "__main__":
             22:"layer_22/width_16k/average_l0_106",
                     }
     attn_repo_id = "google/gemma-scope-2b-pt-att"
-    attn_layers = [2,7,14,18,22]
+    layers = [2,7,14,18,22]
     #layers = [0,5,10,15,20]
-    layers = [7]
+    #layers = [7]
     saes_dict = {}
 
     with torch.no_grad():
