@@ -58,34 +58,6 @@ def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb
 
 
 
-def compute_top_k_feature_all(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb_pos:int):
-    func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
-    feature_attribution_df = calculate_feature_attribution(
-        model = model,
-        input = toks,
-        metric_fn = func,
-        include_saes=saes_dict,
-        include_error_term=True,
-        return_logits=True,
-    )
-    all_df = []  # Define the list where all DataFrames will be stored
-    for key in saes_dict.keys():
-        # Convert the sparse feature attributions to long format DataFrame
-        df_long_nonzero = convert_sparse_feature_to_long_df(
-            feature_attribution_df.sae_feature_attributions[key][0].cpu()
-        )
-        
-        df_long_nonzero = df_long_nonzero.sort_values("attribution", ascending=True)  # Reassign the sorted DataFrame
-        df_long_nonzero["Layer"] = key
-        all_df.append(df_long_nonzero)
-
-    final_df = pd.concat(all_df, axis=0, ignore_index=True) 
-
-
-    final_df_top = final_df.nlargest(k, "attribution")
-    tuple_list = [(pos,feat,layer) for pos,feat,layer in zip(final_df_top["position"],final_df_top["feature"],final_df_top["Layer"])]
-    torch.cuda.empty_cache()
-    return tuple_list
 
 
 # %%
@@ -95,6 +67,8 @@ def metric_fn(logits: torch.Tensor, pos:int = 46,tok0:int = 235248,tok1:int = 10
 
 # Metric -log prob
 def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) -> torch.Tensor:
+    print(logits.shape)
+
     log_probs = log_softmax(logits, dim=-1)
     return -log_probs[0,pos,tok_id]
 
@@ -124,7 +98,7 @@ def get_all_features(model, generation_dict, saes_dict):
 # %%
 if __name__ == "__main__":
 
-    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
+    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cpu")
     generation_dict = torch.load("gemma2_generation_dict.pt")
 
     full_strings = get_all_string_min_l0_resid_gemma()
@@ -144,19 +118,20 @@ if __name__ == "__main__":
                     }
     attn_repo_id = "google/gemma-scope-2b-pt-att"
     attn_layers = [2,7,14,18,22]
-    layers = [0,5,10,15,20]
+    #layers = [0,5,10,15,20]
+    layers = [7]
     saes_dict = {}
 
     with torch.no_grad():
         for layer in layers:
-            repo_id = "google/gemma-scope-2b-pt-res"
+            repo_id = "google/gemma-scope-2b-pt-att"
             folder_name = full_strings_attn[layer]
             config = get_gemma_2_config(repo_id, folder_name)
             cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
             sae_cfg = SAEConfig.from_dict(cfg)
             sae = SAE(sae_cfg)
             sae.load_state_dict(state_dict)
-            sae.to("cuda:0")
+            #sae.to("cuda:0")
             sae.use_error_term = True
             saes_dict[sae.cfg.hook_name] = sae
 
