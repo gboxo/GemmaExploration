@@ -97,8 +97,9 @@ for key,val in x.items():
     for eg_id, tups in val.items():
         total_examples += 1
         for pos, feat, layer in tups:
-            if layer == "blocks.2.attn.hook_z":
-                unique_features.append(feat)
+            l = int(layer.split(".")[1])+1
+            #if layer == "blocks.2.attn.hook_z":
+            unique_features.append(int(str(l)+str(feat)))
 unique_features = list(set(unique_features))
 
 count_matrix = torch.zeros((len(unique_features), total_examples))
@@ -108,8 +109,9 @@ i = 0
 for (key, val) in x.items():
     for eg_id, tups in val.items():
         for pos, feat, layer in tups:
-            if layer == "blocks.2.attn.hook_z":
-                count_matrix[unique_features.index(feat), i] += 1
+            l = int(layer.split(".")[1])+1
+            #if layer == "blocks.2.attn.hook_z":
+            count_matrix[unique_features.index(int(str(l)+str(feat))), i] += 1
         i+=1
 
 
