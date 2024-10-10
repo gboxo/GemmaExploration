@@ -20,9 +20,10 @@ from IPython.display import display, HTML
 import plotly.express as px
 from sae_lens import HookedSAETransformer, SAE, SAEConfig
 from collections import Counter
+from transformers import AutoTokenizer
 
 
-model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it") 
 generation_dict = torch.load("gemma2_generation_temps_dict.pt", map_location="cpu")
 
 
@@ -53,7 +54,7 @@ def get_stats(dict_toks):
             topic_items = {} 
             for i,toks in enumerate(tok_list):
                 toks = toks.squeeze()
-                string = model.to_string(toks)
+                string = tokenizer.decode(toks.tolist())
                 items = [item for item in string.split("\n") if item.startswith("-")]
                 topic_items[i] = items
                 hypen_positions = torch.where(toks == hypen_tok_id)[0].to("cpu")
@@ -71,15 +72,16 @@ def get_stats(dict_toks):
 
                 stats_dict[topic][temp].append({"num_tokens": number_of_tokens_per_item, "num_items": num_items, "avg_tokens_per_item": number_of_tokens_per_item, "blank_positions": white_spaces_tok_pos})
             # Compute the shannon idex for each item in the examples
-            for i,items in topic_items.items():
-                item_counts = Counter(items)
-                total_items = len(items)
-                shannon = 0
-                for count in item_counts.values():
-                    p = count/total_items
-                    shannon += p*np.log(p)
-                shannon = -shannon
-                stats_diversity[topic][temp] = shannon
+            all_items = [item for eg_list in topic_items.values() for item in eg_list]
+            item_counts = Counter(all_items)
+            print(item_counts)
+            total_items = len(all_items)
+            shannon = 0
+            for count in item_counts.values():
+                p = count/total_items
+                shannon += p*np.log(p)
+            shannon = -shannon
+            stats_diversity[topic][temp] = shannon
 
     return stats_dict,stats_diversity
 
@@ -100,10 +102,15 @@ diversity_df = pd.DataFrame.from_dict(
 # Add an extra row with the variance of the shannon index 
 diversity_df.loc["variance"] = diversity_df.var()
 
-print(diversity_df.head())
+# Add an extra col with the mean of the shannon index
+diversity_df["mean"] = diversity_df.mean(axis=1)
+
 diversity_df.to_html("diversity_df.html")
 
 
-
-
-
+# Get the variance in the number of items per example
+num_items_variance = pd.DataFrame.from_dict(
+    {topic: {temp: np.var([item["num_items"] for item in temp_dict]) for temp, temp_dict in temp_dict.items()} for topic, temp_dict in stats_dict.items()},
+    orient='index'
+)
+num_items_variance.to_html("num_items_variance.html")
