@@ -43,13 +43,13 @@ def get_all_active_features(model, generation_dict,saes_dict):
         for eg_id,toks in enumerate(topic_list):
             traces_dict = compute_max_trace(model,toks,saes_dict)
             all_tuples_dict[topic][eg_id] = traces_dict
-    torch.save(all_tuples_dict, f"all_max_traces_dict_attn.pt")
+    torch.save(all_tuples_dict, f"traces/all_max_traces_dict_attn.pt")
 
 # %%
 if __name__ == "__main__":
 
     model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cuda:0")
-    generation_dict = torch.load("gemma2_generation_dict.pt")
+    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt")
 
     full_strings = get_all_string_min_l0_resid_gemma()
     full_strings = {

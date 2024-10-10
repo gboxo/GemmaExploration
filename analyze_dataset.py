@@ -24,7 +24,7 @@ from transformers import AutoTokenizer
 
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it") 
-generation_dict = torch.load("gemma2_generation_temps_dict.pt", map_location="cpu")
+generation_dict = torch.load("generation_dicts/gemma2_generation_temps_dict.pt", map_location="cpu")
 
 
 hypen_tok_id = 235290
@@ -105,7 +105,7 @@ diversity_df.loc["variance"] = diversity_df.var()
 # Add an extra col with the mean of the shannon index
 diversity_df["mean"] = diversity_df.mean(axis=1)
 
-diversity_df.to_html("diversity_df.html")
+diversity_df.to_html("tables/diversity_df.html")
 
 
 # Get the variance in the number of items per example
@@ -113,4 +113,4 @@ num_items_variance = pd.DataFrame.from_dict(
     {topic: {temp: np.var([item["num_items"] for item in temp_dict]) for temp, temp_dict in temp_dict.items()} for topic, temp_dict in stats_dict.items()},
     orient='index'
 )
-num_items_variance.to_html("num_items_variance.html")
+num_items_variance.to_html("tables/num_items_variance.html")

@@ -13,7 +13,7 @@ from typing import Optional
 
 # %%
 model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it")
-generation_dict = torch.load("gemma2_generation_dict.pt")
+generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt")
 toks = generation_dict["Vegetables"][0]
 
 

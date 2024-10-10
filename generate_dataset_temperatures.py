@@ -60,4 +60,4 @@ if __name__ == "__main__":
     "Famous Scientists","Famous Writers","Video Games","Companies","Colors"]
     topics = ["Languages","Countries","Animals","Books"]
     generation_dict = generate_lists(topics)
-    torch.save(generation_dict, "gemma2_generation_temps_dict_selection_no_short.pt")
+    torch.save(generation_dict, "generation_dicts/gemma2_generation_temps_dict_selection_no_short.pt")

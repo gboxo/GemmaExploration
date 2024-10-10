@@ -56,7 +56,7 @@ def display_heatmap(x,comp):
 
 # %%
 
-x = torch.load("all_tuples_dict_top_200_item_pos_logit_diff_all_attn.pt")
+x = torch.load("tuples/all_tuples_dict_top_200_item_pos_logit_diff_all_attn.pt")
 
 
 
@@ -82,7 +82,7 @@ for key in topic_features.keys():
         all_tuples_df.append({"Topic": key, "Layer": layer, "Top-10 feats": top_feats[layer], "Top-10 positions": top_positions[layer]})
 
 all_tuples_df = pd.DataFrame(all_tuples_df)
-all_tuples_df.to_html("all_tuples_df.html")
+all_tuples_df.to_html("tables/all_tuples_df.html")
 
 
 

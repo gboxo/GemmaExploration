@@ -89,8 +89,8 @@ def get_all_features(model, generation_dict, saes_dict):
             tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             #tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             all_tuples_dict[topic][eg_id] = tuples
-    #torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_log_prob.pt")
-    torch.save(all_tuples_dict, f"all_tuples_dict_top_{top_k}_item_pos_logit_diff_all_attn.pt")
+    #torch.save(all_tuples_dict, f"tuples/all_tuples_dict_top_{top_k}_item_pos_log_prob.pt")
+    torch.save(all_tuples_dict, f"tuples/all_tuples_dict_top_{top_k}_item_pos_logit_diff_all_attn.pt")
 
 
 
@@ -99,7 +99,7 @@ def get_all_features(model, generation_dict, saes_dict):
 if __name__ == "__main__":
 
     model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cpu")
-    generation_dict = torch.load("gemma2_generation_dict.pt")
+    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt")
 
     full_strings = get_all_string_min_l0_resid_gemma()
     full_strings = {
