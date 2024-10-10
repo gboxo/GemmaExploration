@@ -24,7 +24,7 @@ from transformers import AutoTokenizer
 
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it") 
-generation_dict = torch.load("generation_dicts/gemma2_generation_temps_dict.pt", map_location="cpu")
+generation_dict = torch.load("generation_dicts/gemma2_generation_temps_dict_selection_no_short.pt", map_location="cpu")
 
 
 hypen_tok_id = 235290
@@ -74,7 +74,6 @@ def get_stats(dict_toks):
             # Compute the shannon idex for each item in the examples
             all_items = [item for eg_list in topic_items.values() for item in eg_list]
             item_counts = Counter(all_items)
-            print(item_counts)
             total_items = len(all_items)
             shannon = 0
             for count in item_counts.values():
@@ -114,3 +113,9 @@ num_items_variance = pd.DataFrame.from_dict(
     orient='index'
 )
 num_items_variance.to_html("tables/num_items_variance.html")
+# Get the variance in the number of items per example
+num_items_mean = pd.DataFrame.from_dict(
+    {topic: {temp: np.mean([item["num_items"] for item in temp_dict]) for temp, temp_dict in temp_dict.items()} for topic, temp_dict in stats_dict.items()},
+    orient='index'
+)
+num_items_mean.to_html("tables/num_items_mean.html")
