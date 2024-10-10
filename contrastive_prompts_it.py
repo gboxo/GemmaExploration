@@ -377,23 +377,6 @@ for fig in figures:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # %%
 from transformer_lens import patching
 with torch.no_grad():
