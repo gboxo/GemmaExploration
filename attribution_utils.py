@@ -40,6 +40,17 @@ class ApplySaesAndRunOutput:
             cache.feature_acts.grad = None
             cache.sae_out.grad = None
             cache.sae_error.grad = None
+    def to(self, device: str) -> None:
+        """helper to move all tensors in this object to a device"""
+        self.model_output = self.model_output.to(device)
+        for act in self.model_activations.values():
+            act = act.to(device)
+        for cache in self.sae_activations.values():
+            print(cache.sae_in.shape)
+            cache.sae_in.to(device)
+            cache.feature_acts.to(device)
+            cache.sae_out.to(device)
+            cache.sae_error.to(device)
 
 def apply_saes_and_run(
         model: HookedSAETransformer,
@@ -160,6 +171,7 @@ def calculate_attribution_grads(
     #gradients = torch.ones_like(metric)
     output.zero_grad()
     metric.backward()
+    output.to("cpu")
     #metric.backward(gradients)
     return AttributionGrads(
         metric=metric,

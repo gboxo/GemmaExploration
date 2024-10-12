@@ -43,8 +43,8 @@ def convert_sparse_feature_to_long_df(sparse_tensor: torch.Tensor) -> pd.DataFra
 
 def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb_pos:int):
 
-    #func = partial(metric_fn, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
-    func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
+    func = partial(metric_fn, pos=attrb_pos, tok0 = tok1, tok1 = tok2)
+    #func = partial(metric_fn_log_prob, pos=attrb_pos, tok_id = tok1)
     feature_attribution_df = calculate_feature_attribution(
         model = model,
         input = toks,
@@ -53,9 +53,11 @@ def compute_top_k_feature(model,toks, saes_dict, k:int,tok1:int, tok2:int, attrb
         include_error_term=True,
         return_logits=True,
     )
+    torch.cuda.empty_cache()
     all_tup = []
     for key in saes_dict.keys():
         df_long_nonzero = convert_sparse_feature_to_long_df(feature_attribution_df.sae_feature_attributions[key][0])
+        torch.cuda.empty_cache()
         df_long_nonzero.sort_values("attribution", ascending=True)
         df_long_nonzero = df_long_nonzero.nlargest(k, "attribution")
         tuple_list = [(pos,feat) for pos,feat in zip(df_long_nonzero["position"],df_long_nonzero["feature"])]
@@ -90,7 +92,7 @@ def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) 
 Position selection:
     hypen_pos = torch.where(toks == hypen_tok_id)[1]
     break_pos = torch.where(toks == break_tok_id)[1]
-    blank_pos = torch.where(toks == blank_tok_id)[1]
+    blanck_pos = torch.where(toks == blanck_tok_id)[1]
     min_hypen = min(hypen_pos)
     break_pos = break_pos[break_pos>min_hypen]
     item_range = [(h.item(),b.item()) for (h,b) in zip(hypen_pos,break_pos)]
@@ -109,13 +111,13 @@ Position selection:
 def get_attrb_pos(toks):
     hypen_pos = torch.where(toks == hypen_tok_id)[1]
     break_pos = torch.where(toks == break_tok_id)[1]
-    blank_pos = torch.where(toks == blank_tok_id)[1]
+    blanck_pos = torch.where(toks == blanck_tok_id)[1]
     min_hypen = min(hypen_pos)
     break_pos = break_pos[break_pos>min_hypen]
     item_range = [(h.item(),b.item()) for (h,b) in zip(hypen_pos,break_pos)]
     last_tok_item = []
     for h,b in item_range:
-        if b-1 in blank_pos:
+        if b-1 in blanck_pos:
             last_tok_item.append(b-2)
         else:
             last_tok_item.append(b-1)
@@ -123,22 +125,21 @@ def get_attrb_pos(toks):
     return attrb_pos
 
 
-def get_all_features(model, generation_dict, saes_dict):
+def get_all_features(model, generation_dict, saes_dict,comp):
 
     hypen_tok_id = 235290
     break_tok_id = 108
     eot_tok_id = 107
     blanck_tok_id = 235248
     all_tuples_dict = defaultdict(dict)
-    top_k = 200
+    top_k = 1000
     for topic, topic_list in tqdm.tqdm(generation_dict.items()):
         for eg_id,toks in enumerate(topic_list):
             attrb_pos = get_attrb_pos(toks)
             tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
-            #tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             all_tuples_dict[topic][eg_id] = tuples
     #torch.save(all_tuples_dict, f"tuples/all_tuples_dict_top_{top_k}_item_pos_log_prob.pt")
-    torch.save(all_tuples_dict, f"tuples/all_tuples_dict_top_{top_k}_item_pos_logit_diff_all_attn.pt")
+    torch.save(all_tuples_dict, f"tuples/all_tuples_dict_top_{top_k}_item_pos_logit_diff_{comp}.pt")
 
 
 
@@ -147,7 +148,14 @@ def get_all_features(model, generation_dict, saes_dict):
 if __name__ == "__main__":
 
     model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cpu")
-    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt",map_location="cpu")
+    model.to("cuda")
+    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt",map_location="cuda")
+    if torch.cuda.is_available():
+        print(f"Allocated: {torch.cuda.memory_allocated() / (1024 ** 2)} MB")
+        print(f"Cached: {torch.cuda.memory_reserved() / (1024 ** 2)} MB")
+    else:
+        print("CUDA is not available.")
+    
 
     full_strings = get_all_string_min_l0_resid_gemma()
     full_strings = {
@@ -166,12 +174,11 @@ if __name__ == "__main__":
                     }
     attn_repo_id = "google/gemma-scope-2b-pt-att"
     attn_layers = [2,7,14,18,22]
-    #layers = [0,5,10,15,20]
-    layers = [7]
-    saes_dict = {}
-
-    with torch.no_grad():
-        for layer in layers:
+    #res_layers = [0,5,10,15,20]
+    attn_layers = [7]
+    for layer in attn_layers:
+        saes_dict = {}
+        with torch.no_grad():
             repo_id = "google/gemma-scope-2b-pt-att"
             folder_name = full_strings_attn[layer]
             config = get_gemma_2_config(repo_id, folder_name)
@@ -179,10 +186,20 @@ if __name__ == "__main__":
             sae_cfg = SAEConfig.from_dict(cfg)
             sae = SAE(sae_cfg)
             sae.load_state_dict(state_dict)
-            #sae.to("cuda:0")
+            sae.to("cuda:0")
             sae.use_error_term = True
             saes_dict[sae.cfg.hook_name] = sae
-
-    get_all_features(model, generation_dict, saes_dict)
+        if torch.cuda.is_available():
+            print(f"Allocated: {torch.cuda.memory_allocated() / (1024 ** 2)} MB")
+            print(f"Cached: {torch.cuda.memory_reserved() / (1024 ** 2)} MB")
+        else:
+            print("CUDA is not available.")
+        get_all_features(model, generation_dict, saes_dict,"attn_{layer}")
+        if torch.cuda.is_available():
+            print(f"Allocated: {torch.cuda.memory_allocated() / (1024 ** 2)} MB")
+            print(f"Cached: {torch.cuda.memory_reserved() / (1024 ** 2)} MB")
+        else:
+            print("CUDA is not available.")
+        torch.cuda.empty_cache()
 
 

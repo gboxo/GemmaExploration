@@ -27,7 +27,7 @@ def compute_max_trace(model,toks, saes_dict):
         _,cache = model.run_with_cache(toks, names_filter = sae_filter)
     all_traces = {}
     for hook,sae in saes_dict.items():
-        acts = cache[hook+".hook_sae_acts_post"]
+        acts = cache[hook+".hook_sae_acts_post"][:,1:,:]
         trace = acts.max(dim = 1).values
         all_traces[hook] = trace.to_sparse()
     torch.cuda.empty_cache()
@@ -43,7 +43,7 @@ def get_all_active_features(model, generation_dict,saes_dict):
         for eg_id,toks in enumerate(topic_list):
             traces_dict = compute_max_trace(model,toks,saes_dict)
             all_tuples_dict[topic][eg_id] = traces_dict
-    torch.save(all_tuples_dict, f"traces/all_max_traces_dict_attn.pt")
+    torch.save(all_tuples_dict, f"traces/all_max_traces_dict_res.pt")
 
 # %%
 if __name__ == "__main__":
@@ -67,15 +67,15 @@ if __name__ == "__main__":
             22:"layer_22/width_16k/average_l0_106",
                     }
     attn_repo_id = "google/gemma-scope-2b-pt-att"
-    layers = [2,7,14,18,22]
-    #layers = [0,5,10,15,20]
+    #layers = [2,7,14,18,22]
+    layers = [0,5,10,15,20]
     #layers = [7]
     saes_dict = {}
 
     with torch.no_grad():
         for layer in layers:
-            repo_id = "google/gemma-scope-2b-pt-att"
-            folder_name = full_strings_attn[layer]
+            repo_id = "google/gemma-scope-2b-pt-res"
+            folder_name = full_strings[layer]
             config = get_gemma_2_config(repo_id, folder_name)
             cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
             sae_cfg = SAEConfig.from_dict(cfg)
