@@ -34,7 +34,7 @@ blanck_tok_id = 235248
 hypen_positions = torch.where(toks[0] == hypen_tok_id)[0]
 break_positions = torch.where(toks[0] == break_tok_id)[0]
 eot_positions = torch.where(toks[0] == eot_tok_id)[0]
-filter_break_pos = [pos.item() for pos in break_positions if pos+1 in hypen_positions]
+filter_break_pos = [pos.item() for pos in break_positions if pos+1 in hypen_positions] + [eot_positions[-1].item()-1]
 
 
 
@@ -137,13 +137,17 @@ attribution_diff = []
 for key in saes_dict.keys():
     clean_key_attribution = feature_attribution_df_clean.sae_feature_attributions[key][0]
     corrupt_key_attribution = feature_attribution_df_corrupt.sae_feature_attributions[key][0]
-    diff = corrupt_key_attribution - clean_key_attribution
+    diff = clean_key_attribution - corrupt_key_attribution
+    diff = diff[1:]
     df = convert_sparse_feature_to_long_df(diff)
     df.sort_values("attribution", ascending=True)
-    df = df.nlargest(10, "attribution")
+    df = df.nlargest(20, "attribution")
     attribution_diff.append(df)
 
-    
+# Combine all dataframes into a single dataframe
+combined_attribution_diff = pd.concat(attribution_diff, keys=saes_dict.keys()).reset_index(level=0).rename(columns={'level_0': 'SAE'})
 
+# Save the combined dataframe to a CSV file
+combined_attribution_diff.to_html("tables/attribution_diff.html", index=False)
 
 
