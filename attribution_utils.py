@@ -46,7 +46,6 @@ class ApplySaesAndRunOutput:
         for act in self.model_activations.values():
             act = act.to(device)
         for cache in self.sae_activations.values():
-            print(cache.sae_in.shape)
             cache.sae_in.to(device)
             cache.feature_acts.to(device)
             cache.sae_out.to(device)

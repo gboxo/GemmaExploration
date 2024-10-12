@@ -88,24 +88,6 @@ def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) 
 
 
 
-"""
-Position selection:
-    hypen_pos = torch.where(toks == hypen_tok_id)[1]
-    break_pos = torch.where(toks == break_tok_id)[1]
-    blanck_pos = torch.where(toks == blanck_tok_id)[1]
-    min_hypen = min(hypen_pos)
-    break_pos = break_pos[break_pos>min_hypen]
-    item_range = [(h.item(),b.item()) for (h,b) in zip(hypen_pos,break_pos)]
-    last_tok_item = []
-    for h,b in item_range:
-        if b-1 in blank_pos:
-            last_tok_item.append(b-2)
-        else:
-            last_tok_item.append(b-1)
-    attrb_pos = last_tok_item[-1]
-
-
-"""
 
 
 def get_attrb_pos(toks):
@@ -173,14 +155,13 @@ if __name__ == "__main__":
             22:"layer_22/width_16k/average_l0_106",
                     }
     attn_repo_id = "google/gemma-scope-2b-pt-att"
-    attn_layers = [2,7,14,18,22]
-    #res_layers = [0,5,10,15,20]
-    attn_layers = [7]
-    for layer in attn_layers:
+    #attn_layers = [2,7,14,18,22]
+    res_layers = [0,5,10,15,20]
+    for layer in res_layers:
         saes_dict = {}
         with torch.no_grad():
-            repo_id = "google/gemma-scope-2b-pt-att"
-            folder_name = full_strings_attn[layer]
+            repo_id = "google/gemma-scope-2b-pt-res"
+            folder_name = full_strings[layer]
             config = get_gemma_2_config(repo_id, folder_name)
             cfg, state_dict, log_spar = gemma_2_sae_loader(repo_id, folder_name)
             sae_cfg = SAEConfig.from_dict(cfg)
@@ -194,7 +175,7 @@ if __name__ == "__main__":
             print(f"Cached: {torch.cuda.memory_reserved() / (1024 ** 2)} MB")
         else:
             print("CUDA is not available.")
-        get_all_features(model, generation_dict, saes_dict,"attn_{layer}")
+        get_all_features(model, generation_dict, saes_dict,f"res_{layer}")
         if torch.cuda.is_available():
             print(f"Allocated: {torch.cuda.memory_allocated() / (1024 ** 2)} MB")
             print(f"Cached: {torch.cuda.memory_reserved() / (1024 ** 2)} MB")
