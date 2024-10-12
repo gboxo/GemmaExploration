@@ -56,7 +56,7 @@ def display_heatmap(x,comp):
 
 # %%
 
-x = torch.load("tuples/all_tuples_dict_top_200_item_pos_logit_diff_all_attn.pt")
+x = torch.load("tuples/all_tuples_dict_top_100_item_pos_logit_diff_all_resid.pt")
 
 
 
@@ -65,24 +65,30 @@ x = torch.load("tuples/all_tuples_dict_top_200_item_pos_logit_diff_all_attn.pt")
 
 # %%
 all_tuples_df = []
-topic_features = defaultdict(lambda: defaultdict(set))
-topic_positions = defaultdict(lambda: defaultdict(set))
+topic_features = defaultdict(lambda: defaultdict(list))
+topic_positions = defaultdict(lambda: defaultdict(list))
 
 for key, val in x.items():
     for eg_id, tups in val.items():
         for pos, feat, layer in tups:
             if pos != 0:
-                topic_features[key][layer].add(feat)
-                topic_positions[key][layer].add(pos)
+                topic_features[key][layer].append(feat)
+                topic_positions[key][layer].append(pos)
 
-for key in topic_features.keys():
-    top_feats = {layer: sorted(features)[:10] for layer, features in topic_features[key].items()}
-    top_positions = {layer: sorted(positions)[:10] for layer, positions in topic_positions[key].items()}
+
+counter_features = {key: {layer: Counter(features) for layer, features in topic_features[key].items()} for key in topic_features.keys()}
+# Get the top-10 features for each topic and layer
+top_counter_features = {key: {layer: counter.most_common(10) for layer, counter in counter_features[key].items()} for key in counter_features.keys()}
+
+
+
+
+for key, top_feats in top_counter_features.items():
     for layer in top_feats.keys():
-        all_tuples_df.append({"Topic": key, "Layer": layer, "Top-10 feats": top_feats[layer], "Top-10 positions": top_positions[layer]})
+        all_tuples_df.append({"Topic": key, "Layer": layer, "Top-10 feats": [elem[0] for elem in top_feats[layer]], "Top-10 positions": [elem[1] for elem in top_feats[layer]]})
 
 all_tuples_df = pd.DataFrame(all_tuples_df)
-all_tuples_df.to_html("tables/all_tuples_df.html")
+all_tuples_df.to_html("tables/all_tuples_df_attrb.html")
 
 
 

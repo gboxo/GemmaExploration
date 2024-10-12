@@ -16,6 +16,15 @@ import tqdm
 import pandas as pd
 
 # %%
+hypen_tok_id = 235290
+break_tok_id = 108
+eot_tok_id = 107
+blanck_tok_id = 235248
+all_tuples_dict = defaultdict(dict)
+
+
+
+# %%
 
 def convert_sparse_feature_to_long_df(sparse_tensor: torch.Tensor) -> pd.DataFrame:
     """
@@ -75,6 +84,45 @@ def metric_fn_log_prob(logits: torch.Tensor, pos:int = 46,tok_id: int = 235248) 
 
 # %%
 
+
+
+"""
+Position selection:
+    hypen_pos = torch.where(toks == hypen_tok_id)[1]
+    break_pos = torch.where(toks == break_tok_id)[1]
+    blank_pos = torch.where(toks == blank_tok_id)[1]
+    min_hypen = min(hypen_pos)
+    break_pos = break_pos[break_pos>min_hypen]
+    item_range = [(h.item(),b.item()) for (h,b) in zip(hypen_pos,break_pos)]
+    last_tok_item = []
+    for h,b in item_range:
+        if b-1 in blank_pos:
+            last_tok_item.append(b-2)
+        else:
+            last_tok_item.append(b-1)
+    attrb_pos = last_tok_item[-1]
+
+
+"""
+
+
+def get_attrb_pos(toks):
+    hypen_pos = torch.where(toks == hypen_tok_id)[1]
+    break_pos = torch.where(toks == break_tok_id)[1]
+    blank_pos = torch.where(toks == blank_tok_id)[1]
+    min_hypen = min(hypen_pos)
+    break_pos = break_pos[break_pos>min_hypen]
+    item_range = [(h.item(),b.item()) for (h,b) in zip(hypen_pos,break_pos)]
+    last_tok_item = []
+    for h,b in item_range:
+        if b-1 in blank_pos:
+            last_tok_item.append(b-2)
+        else:
+            last_tok_item.append(b-1)
+    attrb_pos = last_tok_item[-1]
+    return attrb_pos
+
+
 def get_all_features(model, generation_dict, saes_dict):
 
     hypen_tok_id = 235290
@@ -85,7 +133,7 @@ def get_all_features(model, generation_dict, saes_dict):
     top_k = 200
     for topic, topic_list in tqdm.tqdm(generation_dict.items()):
         for eg_id,toks in enumerate(topic_list):
-            attrb_pos = torch.where(toks[0] == 235290)[0][-1].item()+1
+            attrb_pos = get_attrb_pos(toks)
             tuples = compute_top_k_feature(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             #tuples = compute_top_k_feature_all(model,toks, saes_dict, k=top_k, tok1 = blanck_tok_id, tok2 = break_tok_id,attrb_pos = attrb_pos)
             all_tuples_dict[topic][eg_id] = tuples
@@ -99,7 +147,7 @@ def get_all_features(model, generation_dict, saes_dict):
 if __name__ == "__main__":
 
     model = HookedSAETransformer.from_pretrained("google/gemma-2-2b-it", device = "cpu")
-    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt")
+    generation_dict = torch.load("generation_dicts/gemma2_generation_dict.pt",map_location="cpu")
 
     full_strings = get_all_string_min_l0_resid_gemma()
     full_strings = {

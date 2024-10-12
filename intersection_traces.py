@@ -71,7 +71,7 @@ x = torch.load("traces/all_max_traces_dict.pt", map_location="cpu")
 # %%
 topic_features = defaultdict(lambda: defaultdict(list))
 topic_act = defaultdict(lambda: defaultdict(list))
-count_features = defaultdict(lambda: defaultdict(int))
+count_features = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
 for key, val in x.items():
     for eg_id, eg_dict in val.items():
@@ -83,18 +83,20 @@ for key, val in x.items():
             topic_act[key][comp] = values.tolist()
             all_features.extend(indices.tolist())
         for feat in all_features:
-            count_features[key][feat] += 1
+            count_features[key][comp][feat] += 1
 
 all_tuples = [] 
 for topic,topic_dict in count_features.items():
-    ind = torch.tensor(list(topic_dict.keys()))
-    val = torch.tensor(list(topic_dict.values()))
-    top_ind = val.argsort(descending=True)[:5]
-    top_feat = ind[top_ind]
-    all_tuples.append({"Topic": topic, "Top-5 feats": top_feat.tolist(), "Top-5 counts": val[top_ind].tolist()})
+    for comp, comp_dict in topic_dict.items():
+        ind = torch.tensor(list(comp_dict.keys()))
+        val = torch.tensor(list(comp_dict.values()))
+        top_ind = val.argsort(descending=True)[5:10]
+        top_feat = ind[top_ind]
+        all_tuples.append({"Topic": topic, "Component": comp, "Top-5 feats": top_feat.tolist(), "Top-5 counts": val[top_ind].tolist()})
 
 
 all_tuples_df = pd.DataFrame(all_tuples)
+all_tuples_df.to_html("tables/all_tuples_df.html")
 
 
 
