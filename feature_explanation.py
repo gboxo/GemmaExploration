@@ -42,6 +42,8 @@ def get_attrb_pos(toks):
     return attrb_pos
 
 def get_layer_comp(generation_dict,layer, comp):
+    if comp == "att":
+        comp = "attn"
 
     full_strings = {"res":{
                         0:"layer_0/width_16k/average_l0_105",
@@ -136,26 +138,89 @@ if __name__ == "__main__":
         all_features[comp+"_"+str(layer)] = occurence_count
 
 
-    # Create dataset folder if it doesn't exist
-    dataset_dir = "features"
-    if not os.path.exists(dataset_dir):
-        os.makedirs(dataset_dir)
 
-    # Logging file to track failed requests
-    log_file = os.path.join(dataset_dir, "failed_requests.log")
-
-    # Check if a log file exists, otherwise create it
-    if not os.path.exists(log_file):
-        with open(log_file, "w") as f:
-            pass  # Create an empty log file
-
-    processed_features = set(os.listdir(dataset_dir))
-
-    for key,l in all_features.items():
-        for feature_id in l:
-            save_feature_data(feature_id,key.split("_")[0],key.split("_")[1])
+    if False:
 
 
+        # Create dataset folder if it doesn't exist
+        dataset_dir = "features"
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir)
 
-    # Close the connection
-    conn.close()
+        # Logging file to track failed requests
+        log_file = os.path.join(dataset_dir, "failed_requests.log")
+
+        # Check if a log file exists, otherwise create it
+        if not os.path.exists(log_file):
+            with open(log_file, "w") as f:
+                pass  # Create an empty log file
+
+        processed_features = set(os.listdir(dataset_dir))
+
+        for key,l in all_features.items():
+            for feature_id in l:
+                save_feature_data(feature_id,key.split("_")[0],key.split("_")[1])
+
+
+
+        # Close the connection
+        conn.close()
+    all_feature_files = os.listdir("features")
+    all_feature_files = [f for f in all_feature_files if f.endswith(".json") and not f.startswith("all")]
+    all_features = {}
+    for file in all_feature_files:
+        print(file)
+        with open(f"features/{file}") as f:
+            data = json.load(f)
+            desc = data["explanations"][0]["description"]
+        all_features[file] = desc
+    with open("features/all_features.json","w") as f:
+        json.dump(all_features,f,indent=4)
+
+    # Get the features explanation for each topic
+
+    layers = [2,7,14,18,22] + [0,5,10,15,20]
+    comps = 5*["att"] + 5*["res"]
+    all_features = {} 
+    for layer, comp in tqdm.tqdm(zip(layers,comps)):
+        pos_feat = get_layer_comp(generation_dict,layer, comp)
+        topic_feats = {}
+        for key,val in pos_feat.items():
+            all_feats = [list(elem.values())[0]["Features"] for elem in list(val.values())]
+            all_feats = [elem for sublist in all_feats for elem in sublist]
+            occurence_count = Counter(all_feats)
+            topic_feats[key] = [k for k,v in occurence_count.items()]
+        all_features[comp+"_"+str(layer)] = topic_feats
+
+
+
+    layers = [2,7,14,18,22] + [0,5,10,15,20]
+    comps = 5*["att"] + 5*["res"]
+    all_features = defaultdict(lambda: defaultdict(list)) 
+    for layer, comp in tqdm.tqdm(zip(layers,comps)):
+        pos_feat = get_layer_comp(generation_dict,layer, comp)
+        full_feats = []
+        for key,val in pos_feat.items():
+            all_feats = [list(elem.values())[0]["Features"] for elem in list(val.values())]
+            all_feats = [elem for sublist in all_feats for elem in sublist]
+            full_feats.extend(all_feats)
+
+        occurence_count = Counter(full_feats).most_common(10)
+        all_features[comp+"_"+str(layer)] = [k for k,v in occurence_count]
+
+    with open("features/all_features.json","r") as f:
+        all_feature_desc = json.load(f)
+    # Display the explanations
+    for key,val in all_features.items():
+
+        print("_____________")
+        print(key)
+        for v in val:
+            desc = all_feature_desc[key+"_"+str(v)+".json"]
+            print(desc)
+
+
+
+
+
+
