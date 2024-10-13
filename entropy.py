@@ -4,7 +4,7 @@
 from torch.nn.functional import log_softmax
 import torch
 import pandas as pd
-
+from sae_lens import HookedSAETransformer
 import torch.nn.functional as F
 import plotly.express as px
 
@@ -62,7 +62,8 @@ def plot_get_entropy(generation_dict,rep_tok):
 
     torch.cuda.empty_cache()
 
-    px.imshow(stacked_entropy_hyphen.cpu().numpy(), aspect = 'auto')
+    fig = px.imshow(stacked_entropy_hyphen.cpu().numpy(), aspect='auto')
+    fig.write_image(f"entropy_plot_clean_{rep_tok}.png")
     # Plot the entropy for the corruped prompts
 
     all_entropy_hyphen = []
@@ -89,7 +90,7 @@ def plot_get_entropy(generation_dict,rep_tok):
         padded_tensors.append(padded_tensor)
     stacked_entropy_hyphen = torch.cat(padded_tensors,dim = 0)
     px.imshow(stacked_entropy_hyphen.cpu().numpy(), aspect = 'auto')
-
+    fig.write_image(f"entropy_plot_corrupt_{rep_tok}.png")
 
 
 
